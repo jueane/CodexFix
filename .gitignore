@@ -1,0 +1,14 @@
+# Generated Codex package copies and large binaries
+portable/
+backups/
+*.asar
+*.asar.*
+
+# Local agent learning logs
+.learnings/
+
+# PowerShell/editor noise
+*.tmp
+*.log
+.DS_Store
+Thumbs.db
