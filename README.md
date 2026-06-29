@@ -2,6 +2,24 @@
 
 这个目录用于临时修复 Codex Desktop 在 `base_url + API key` 使用模式下仍轮询 ChatGPT `wham/*` 接口导致卡顿的问题。
 
+## 问题背景
+
+用户使用的是 `base_url + API key` 模式，不走 ChatGPT 登录；模型请求本身能正常工作。卡顿根因是 Codex Desktop 前端仍在后台轮询 ChatGPT `wham/*` 接口，这些接口需要 ChatGPT 后端 token，但 API-key-only 模式没有该 token，因此持续出现：
+
+```text
+desktop_fetch_auth_401
+hadToken=false
+skipRetryReason=no_token_attached
+status=401
+GET https://chatgpt.com/backend-api/wham/tasks/list
+GET https://chatgpt.com/backend-api/wham/usage
+```
+
+补丁点：
+
+- 侧边栏任务轮询：`webview/assets/sidebar-project-group-signals-B1b4ePo5.js` 中的 `/wham/tasks/list` 查询由 `enabled:!0` 改为 `enabled:!1`。
+- 用量/限额轮询：`webview/assets/thread-context-inputs-BoCUYCfG.js` 中的 `/wham/usage` 调用改为 `Promise.resolve(null)`，并用空格保持字节长度一致。
+
 ## 文件
 
 - `Repair-CodexWhamPolling.ps1`：修复脚本，禁用两个轮询点。
