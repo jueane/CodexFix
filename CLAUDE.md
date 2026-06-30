@@ -11,6 +11,15 @@ This repository contains PowerShell tooling for a local workaround to Codex Desk
 
 The current working approach is to create a writable external copy of the installed Codex package, patch that copy's `app.asar`, and launch the patched copy. Do not assume the installed WindowsApps package can be modified in place: on this machine, direct Administrator writes, `takeown`/`icacls`, and the SYSTEM scheduled-task copy fallback all failed with `0x80070005` against the installed `app.asar`.
 
+## Confirmed Findings
+
+The main hang trigger is confirmed to be ChatGPT `wham/*` frontend polling in API-key-only mode, not model API calls, `config.toml`, or missing ChatGPT login.
+
+Evidence to preserve should use patched-copy runs as the baseline:
+
+- On 2026-06-30, running the patched portable copy produced 0 `desktop_fetch_auth_401`, 0 `/wham/tasks/list`, 0 `/wham/usage`, and 0 Codex AppHang/crash/WER events for the day checked.
+- Other log noise such as `Received turn/... for unknown conversation`, git watcher warnings, worker RPC warnings, and WSL status failures has appeared, but has not correlated with the original AppHang pattern.
+
 ## Common Commands
 
 Run commands from `D:\develop\CodexFix` in PowerShell.

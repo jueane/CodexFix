@@ -20,6 +20,15 @@ GET https://chatgpt.com/backend-api/wham/usage
 - 侧边栏任务轮询：`webview/assets/sidebar-project-group-signals-B1b4ePo5.js` 中的 `/wham/tasks/list` 查询由 `enabled:!0` 改为 `enabled:!1`。
 - 用量/限额轮询：`webview/assets/thread-context-inputs-BoCUYCfG.js` 中的 `/wham/usage` 调用改为 `Promise.resolve(null)`，并用空格保持字节长度一致。
 
+## 已确认结论
+
+当前结论比较稳定：主要卡顿触发源是 API-key-only 模式下仍持续轮询 ChatGPT `wham/*` 接口，而不是模型 API、`config.toml` 或必须登录 ChatGPT。
+
+验证记录以补丁版运行日为准：
+
+- 2026-06-30 使用外置补丁版 `D:\develop\CodexFix\portable\OpenAI.Codex_26.623.5546.0_x64__2p2nqsd0c76g0` 后，当天日志中 `desktop_fetch_auth_401`、`/wham/tasks/list`、`/wham/usage` 均为 `0`，且没有 Codex AppHang/crash/WER 事件。
+- 日志中仍可能出现 `Received turn/... for unknown conversation`、git watcher、worker RPC、WSL 查询失败等噪声；目前没有证据表明它们与之前的系统级卡顿形成稳定关联。
+
 ## 文件
 
 - `Repair-CodexWhamPolling.ps1`：修复脚本，禁用两个轮询点。
