@@ -95,14 +95,22 @@ if ($LASTEXITCODE -ne 0) {
     throw "Repair script failed for portable copy with exit code $LASTEXITCODE"
 }
 
-$launcher = Join-Path $PSScriptRoot "Start-CodexPatchedCopy.ps1"
 $exe = Join-Path $target "app\Codex.exe"
+$shortcutScript = Join-Path $PSScriptRoot "New-CodexPatchedShortcuts.ps1"
+
+Write-Host "Creating shortcuts for patched copy: $exe"
+$shortcutJson = & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $shortcutScript -PortablePackageDir $target
+if ($LASTEXITCODE -ne 0) {
+    throw "Shortcut script failed for portable copy with exit code $LASTEXITCODE"
+}
+$shortcutResult = ($shortcutJson -join [Environment]::NewLine) | ConvertFrom-Json
 
 [pscustomobject]@{
     SourcePackage = $source
     PortablePackage = $target
     PortableAsar = $portableAsar
     PortableBackup = $portableBackup
-    Launcher = $launcher
+    ShortcutScript = $shortcutScript
+    Shortcuts = $shortcutResult.Shortcuts
     Executable = $exe
 } | ConvertTo-Json -Depth 3

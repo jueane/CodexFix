@@ -1,65 +1,65 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+这个文件给 Claude Code 在本仓库中工作时提供项目说明和约束。
 
-## Purpose
+## 目的
 
-This repository contains PowerShell tooling for a local workaround to Codex Desktop hangs caused by API-key-only sessions still polling ChatGPT `wham/*` endpoints. The model/API-key path is not the root issue; the targeted failures are repeated `401 Unauthorized` logs for:
+本仓库包含一组 PowerShell 工具，用于临时绕过 Codex Desktop 在 `base_url + API key` 使用模式下仍轮询 ChatGPT `wham/*` 接口导致的卡顿。模型/API-key 请求路径不是根因；需要处理的是日志中反复出现的这些 `401 Unauthorized`：
 
 - `GET https://chatgpt.com/backend-api/wham/tasks/list`
 - `GET https://chatgpt.com/backend-api/wham/usage`
 
-The current working approach is to create a writable external copy of the installed Codex package, patch that copy's `app.asar`, and launch the patched copy. Do not assume the installed WindowsApps package can be modified in place: on this machine, direct Administrator writes, `takeown`/`icacls`, and the SYSTEM scheduled-task copy fallback all failed with `0x80070005` against the installed `app.asar`.
+当前有效方案是：创建一个可写的 Codex 已安装包外置副本，修补该副本中的 `app.asar`，然后启动这个补丁副本。不要假设可以直接修改 WindowsApps 中安装的包；在这台机器上，直接管理员写入、`takeown`/`icacls`、以及 SYSTEM 计划任务复制兜底都曾对已安装的 `app.asar` 返回 `0x80070005`。
 
-## Confirmed Findings
+## 已确认结论
 
-The main hang trigger is confirmed to be ChatGPT `wham/*` frontend polling in API-key-only mode, not model API calls, `config.toml`, or missing ChatGPT login.
+主要卡顿触发源已确认是 API-key-only 模式下前端仍持续轮询 ChatGPT `wham/*` 接口，而不是模型 API、`config.toml` 或缺少 ChatGPT 登录。
 
-Evidence to preserve should use patched-copy runs as the baseline:
+保留证据时，应以补丁外置副本运行结果为基准：
 
-- On 2026-06-30, running the patched portable copy produced 0 `desktop_fetch_auth_401`, 0 `/wham/tasks/list`, 0 `/wham/usage`, and 0 Codex AppHang/crash/WER events for the day checked.
-- Other log noise such as `Received turn/... for unknown conversation`, git watcher warnings, worker RPC warnings, and WSL status failures has appeared, but has not correlated with the original AppHang pattern.
+- 2026-06-30，使用补丁 portable 副本运行后，当天检查到的 `desktop_fetch_auth_401`、`/wham/tasks/list`、`/wham/usage` 都是 0，且没有 Codex AppHang/crash/WER 事件。
+- 其他日志噪声，例如 `Received turn/... for unknown conversation`、git watcher 警告、worker RPC 警告、WSL 状态失败等曾出现过，但目前没有和原始 AppHang 模式形成稳定关联。
 
-## Common Commands
+## 常用命令
 
-Run commands from `D:\develop\CodexFix` in PowerShell.
+在 PowerShell 中从 `D:\develop\CodexFix` 执行命令。
 
-Create or refresh the patched external Codex copy:
+创建或刷新补丁外置 Codex 副本：
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File .\New-CodexPatchedCopy.ps1
 ```
 
-Start the patched copy:
+刷新桌面和仓库根目录快捷方式：
 
 ```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File .\Start-CodexPatchedCopy.ps1
+powershell -NoProfile -ExecutionPolicy Bypass -File .\New-CodexPatchedShortcuts.ps1
 ```
 
-Patch a specific `app.asar`, usually a test copy or portable copy:
+修补指定的 `app.asar`，通常用于测试副本或 portable 副本：
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File .\Repair-CodexWhamPolling.ps1 -TargetAsar .\test\app.asar -BackupPath .\test\app.asar.codexfix.bak
 ```
 
-Restore a specific `app.asar` from a backup:
+从备份还原指定的 `app.asar`：
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File .\Restore-CodexWhamPolling.ps1 -TargetAsar .\test\app.asar -BackupPath .\test\app.asar.codexfix.bak
 ```
 
-Validate PowerShell syntax after script edits:
+脚本编辑后验证 PowerShell 语法：
 
 ```powershell
-$files = @('.\Repair-CodexWhamPolling.ps1', '.\Restore-CodexWhamPolling.ps1', '.\New-CodexPatchedCopy.ps1', '.\Start-CodexPatchedCopy.ps1')
+$files = @('.\Repair-CodexWhamPolling.ps1', '.\Restore-CodexWhamPolling.ps1', '.\New-CodexPatchedCopy.ps1', '.\New-CodexPatchedShortcuts.ps1')
 foreach ($file in $files) {
   $tokens = $null; $errors = $null
   [System.Management.Automation.Language.Parser]::ParseFile((Resolve-Path $file), [ref]$tokens, [ref]$errors) | Out-Null
-  if ($errors.Count -gt 0) { $errors | ForEach-Object { "$file: $($_.Message)" } }
+  if ($errors.Count -gt 0) { $errors | ForEach-Object { "${file}: $($_.Message)" } }
 }
 ```
 
-End-to-end validation with the local test `app.asar` copy, when present:
+本地测试 `app.asar` 副本存在时，可做端到端验证：
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File .\Restore-CodexWhamPolling.ps1 -TargetAsar .\test\app.asar -BackupPath .\test\app.asar.codexfix.bak
@@ -68,51 +68,52 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\Repair-CodexWhamPolling.ps
 powershell -NoProfile -ExecutionPolicy Bypass -File .\Restore-CodexWhamPolling.ps1 -TargetAsar .\test\app.asar -BackupPath .\test\app.asar.codexfix.bak
 ```
 
-Expected test hashes for Codex `26.623.5546.0`:
+Codex `26.623.5546.0` 的预期测试哈希：
 
-- Original: `EADBBADB611619E31D352190042586268AD38EC1A180F821C48550072872F1CF`
-- Patched: `41F067A25CA12ADCBE3FB2597B45D03444DD59A56086F6A7ADB9C46134EC20E7`
+- 原始：`EADBBADB611619E31D352190042586268AD38EC1A180F821C48550072872F1CF`
+- 已修补：`41F067A25CA12ADCBE3FB2597B45D03444DD59A56086F6A7ADB9C46134EC20E7`
 
-Check whether the patched runtime is still producing the original failure signature:
+检查补丁运行时是否仍产生原始失败特征：
 
 ```powershell
 Select-String -Path "$env:LOCALAPPDATA\Codex\Logs\2026\06\29\*.log" -Pattern 'desktop_fetch_auth_401','/wham/tasks/list','/wham/usage'
 ```
 
-Adjust the date path for the current log day.
+按当前日志日期调整路径。
 
-## Architecture
+## 架构
 
-`Repair-CodexWhamPolling.ps1` is the byte-level patcher. It locates a target `app.asar`, reads it as bytes, and applies two same-length UTF-8 replacements:
+`Repair-CodexWhamPolling.ps1` 是字节级修补器。它定位目标 `app.asar`，按字节读取，并应用两个等长 UTF-8 替换：
 
-- Disables the sidebar task polling query by changing `enabled:!0` to `enabled:!1` in the `/wham/tasks/list` snippet.
-- Replaces the `/wham/usage` call with `Promise.resolve(null)`, padded with spaces to preserve byte length.
+- 通过把 `/wham/tasks/list` 片段中的 `enabled:!0` 改成 `enabled:!1`，禁用侧边栏任务轮询查询。
+- 把 `/wham/usage` 调用替换成 `Promise.resolve(null)`，并用空格填充以保持字节长度不变。
 
-The patcher refuses ambiguous or unsupported inputs: each original snippet must match exactly once, or the already-patched snippet must be present. It verifies after writing that original snippets are gone and patched snippets exist.
+修补器会拒绝模糊或不支持的输入：每个原始片段必须精确匹配一次，或者必须已经存在已修补片段。写入后它会验证原始片段已消失、已修补片段存在。
 
-`Restore-CodexWhamPolling.ps1` restores a target `app.asar` from a backup and verifies SHA256 equality between backup and target after copying.
+`Restore-CodexWhamPolling.ps1` 会从备份还原目标 `app.asar`，并在复制后验证备份和目标的 SHA256 相同。
 
-`New-CodexPatchedCopy.ps1` is the preferred workflow for this machine. It finds the newest installed `OpenAI.Codex_*_x64__2p2nqsd0c76g0` package under `C:\Program Files\WindowsApps`, copies the full package with `robocopy` into `portable\`, and then invokes `Repair-CodexWhamPolling.ps1` against the copied `app\resources\app.asar`. This avoids mutating WindowsApps.
+`New-CodexPatchedCopy.ps1` 是这台机器上的首选流程。它会在 `C:\Program Files\WindowsApps` 下找到最新的 `OpenAI.Codex_*_x64__2p2nqsd0c76g0` 安装包，用 `robocopy` 复制完整包到 `portable\`，调用 `Repair-CodexWhamPolling.ps1` 修补副本中的 `app\resources\app.asar`，然后刷新快捷方式。这样可以避免修改 WindowsApps。
 
-`Start-CodexPatchedCopy.ps1` launches the latest package under `portable\` by running `app\Codex.exe` with its containing directory as the working directory.
+`New-CodexPatchedShortcuts.ps1` 会在用户桌面和仓库根目录创建或刷新 `Codex Patched.lnk` 与 `Codex Original.lnk`。默认情况下，补丁版快捷方式指向 `portable\` 下版本号最高的包；`New-CodexPatchedCopy.ps1` 会显式传入刚修补好的包。原版快捷方式通过 Explorer 启动 `shell:AppsFolder\OpenAI.Codex_2p2nqsd0c76g0!App`，因此 Codex 升级后仍会打开当前安装的最新版。
 
-Investigation context to preserve: the user uses `base_url + API key`, not ChatGPT login. Do not suggest logging into ChatGPT as the fix. The model request path works; the hang correlated with frontend `wham/*` polling failures, not `config.toml` or model API configuration. The relevant UI bundle locations in Codex `26.623.5546.0` were `webview/assets/sidebar-project-group-signals-B1b4ePo5.js` for `/wham/tasks/list` and `webview/assets/thread-context-inputs-BoCUYCfG.js` for `/wham/usage`.
+需要保留的调查背景：用户使用 `base_url + API key`，不是 ChatGPT 登录。不要把登录 ChatGPT 建议为修复方案。模型请求路径可用；卡顿与前端 `wham/*` 轮询失败相关，而不是 `config.toml` 或模型 API 配置。Codex `26.623.5546.0` 中相关 UI bundle 位置曾是：`webview/assets/sidebar-project-group-signals-B1b4ePo5.js` 对应 `/wham/tasks/list`，`webview/assets/thread-context-inputs-BoCUYCfG.js` 对应 `/wham/usage`。
 
-## Repository State and Generated Files
+## 仓库状态和生成文件
 
-The repository intentionally ignores generated or large artifacts:
+仓库有意忽略生成产物或大文件：
 
-- `portable/` contains full copied Codex app packages and should not be committed.
-- `backups/` contains generated `app.asar` backups and should not be committed.
-- `*.asar` and `*.asar.*` are ignored, including test and backup binaries.
-- `.learnings/` is local diagnostic history and is ignored.
+- `portable/` 包含完整复制出来的 Codex app 包，不应提交。
+- `backups/` 包含生成的 `app.asar` 备份，不应提交。
+- `*.asar` 和 `*.asar.*` 会被忽略，包括测试和备份二进制文件。
+- `*.lnk` 快捷方式是本地生成文件，不应提交。
+- `.learnings/` 是本地诊断历史，会被忽略。
 
-The tracked source should remain the PowerShell scripts, `README.md`, `CLAUDE.md`, `.gitignore`, and small metadata such as `test/original.sha256.txt`.
+跟踪源码应保持为 PowerShell 脚本、`README.md`、`CLAUDE.md`、`.gitignore`，以及少量元数据，例如 `test/original.sha256.txt`。
 
-## Operational Notes
+## 操作注意事项
 
-Before patching or recreating the portable copy, close running `Codex.exe` and `codex.exe` processes. `New-CodexPatchedCopy.ps1` enforces this.
+修补或重新创建 portable 副本前，先关闭正在运行的 `Codex.exe` 和 `codex.exe` 进程。`New-CodexPatchedCopy.ps1` 会强制检查这一点。
 
-Use the portable-copy workflow first. The in-place WindowsApps options in `Repair-CodexWhamPolling.ps1` and `Restore-CodexWhamPolling.ps1` are retained for machines where permissions allow them, but on this machine they have already failed even after `Administrators:F` and SYSTEM-copy attempts.
+优先使用 portable 外置副本流程。`Repair-CodexWhamPolling.ps1` 和 `Restore-CodexWhamPolling.ps1` 中保留的 WindowsApps 原地操作选项，只适用于权限允许的机器；在这台机器上，即使尝试 `Administrators:F` 和 SYSTEM 复制也已经失败。
 
-When Codex updates, rerun `New-CodexPatchedCopy.ps1`. If the script reports that patch bytes do not match original or patched bytes, inspect the new `app.asar` for updated `/wham/tasks/list` and `/wham/usage` snippets before changing patch strings.
+Codex 更新后，重新运行 `New-CodexPatchedCopy.ps1`。如果脚本报告补丁字节不匹配原始或已修补字节，需要先检查新版 `app.asar` 中更新后的 `/wham/tasks/list` 和 `/wham/usage` 片段，再修改补丁字符串。

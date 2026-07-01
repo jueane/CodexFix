@@ -10,5 +10,6 @@ backups/
 # PowerShell/editor noise
 *.tmp
 *.log
+*.lnk
 .DS_Store
 Thumbs.db
