@@ -207,6 +207,10 @@ function New-PatchSpec {
     $encoding = [System.Text.Encoding]::UTF8
     $originalBytes = $encoding.GetBytes($Original)
     $patchedBytes = $encoding.GetBytes($Patched)
+    if ($patchedBytes.Length -lt $originalBytes.Length) {
+        $Patched = $Patched + (" " * ($originalBytes.Length - $patchedBytes.Length))
+        $patchedBytes = $encoding.GetBytes($Patched)
+    }
     if ($originalBytes.Length -ne $patchedBytes.Length) {
         throw "Patch '$Name' is invalid: original length $($originalBytes.Length), patched length $($patchedBytes.Length)"
     }
@@ -219,15 +223,43 @@ function New-PatchSpec {
     }
 }
 
-$patches = @(
-    (New-PatchSpec `
+function New-PatchGroup {
+    param(
+        [string]$Name,
+        [object[]]$Variants
+    )
+
+    [pscustomobject]@{
+        Name = $Name
+        Variants = $Variants
+    }
+}
+
+$patchGroups = @(
+    (New-PatchGroup `
         -Name "Disable sidebar /wham/tasks/list polling" `
-        -Original 'enabled:!0,placeholderData:n,queryFn:async()=>{try{return(await se.safeGet(`/wham/tasks/list`,{parameters:{query:{limit:20,task_filter:`current`}}})).items}' `
-        -Patched  'enabled:!1,placeholderData:n,queryFn:async()=>{try{return(await se.safeGet(`/wham/tasks/list`,{parameters:{query:{limit:20,task_filter:`current`}}})).items}'),
-    (New-PatchSpec `
+        -Variants @(
+            (New-PatchSpec `
+                -Name "Disable sidebar /wham/tasks/list polling (26.623)" `
+                -Original 'enabled:!0,placeholderData:n,queryFn:async()=>{try{return(await se.safeGet(`/wham/tasks/list`,{parameters:{query:{limit:20,task_filter:`current`}}})).items}' `
+                -Patched  'enabled:!1,placeholderData:n,queryFn:async()=>{try{return(await se.safeGet(`/wham/tasks/list`,{parameters:{query:{limit:20,task_filter:`current`}}})).items}'),
+            (New-PatchSpec `
+                -Name "Disable sidebar /wham/tasks/list polling (26.707)" `
+                -Original 'enabled:!0,placeholderData:i,queryFn:async()=>{try{return(await Ae.safeGet(`/wham/tasks/list`,{parameters:{query:{limit:20,task_filter:`current`}}})).items}' `
+                -Patched  'enabled:!1,placeholderData:i,queryFn:async()=>{try{return(await Ae.safeGet(`/wham/tasks/list`,{parameters:{query:{limit:20,task_filter:`current`}}})).items}')
+        )),
+    (New-PatchGroup `
         -Name "Disable /wham/usage rate-limit polling" `
-        -Original 'return await on.safeGet(`/wham/usage`)' `
-        -Patched  'return await Promise.resolve(null)    ')
+        -Variants @(
+            (New-PatchSpec `
+                -Name "Disable /wham/usage rate-limit polling (26.623)" `
+                -Original 'return await on.safeGet(`/wham/usage`)' `
+                -Patched  'return await Promise.resolve(null)    '),
+            (New-PatchSpec `
+                -Name "Disable /wham/usage rate-limit polling (26.707)" `
+                -Original 'return await hi.safeGet(`/wham/usage`,{parameters:{query:{supports_rewardless_invites:!0}}})' `
+                -Patched  'return await(Promise.resolve(null))')
+        ))
 )
 
 $target = Resolve-TargetAsar -Path $TargetAsar
@@ -253,29 +285,60 @@ $changed = $false
 $results = New-Object System.Collections.Generic.List[object]
 $pendingWrites = New-Object System.Collections.Generic.List[object]
 
-foreach ($patch in $patches) {
-    $originalIndex = [CodexFix.ByteSearch]::IndexOf($bytes, $patch.OriginalBytes, 0)
-    $patchedIndex = [CodexFix.ByteSearch]::IndexOf($bytes, $patch.PatchedBytes, 0)
+foreach ($patchGroup in $patchGroups) {
+    $originalMatches = New-Object System.Collections.Generic.List[object]
+    $patchedMatches = New-Object System.Collections.Generic.List[object]
 
-    if ($originalIndex -ge 0) {
-        $secondOriginal = [CodexFix.ByteSearch]::IndexOf($bytes, $patch.OriginalBytes, $originalIndex + 1)
-        if ($secondOriginal -ge 0) {
-            throw "Patch '$($patch.Name)' matched more than once. Refusing to patch this Codex version."
+    foreach ($patch in $patchGroup.Variants) {
+        $originalIndex = [CodexFix.ByteSearch]::IndexOf($bytes, $patch.OriginalBytes, 0)
+        $patchedIndex = [CodexFix.ByteSearch]::IndexOf($bytes, $patch.PatchedBytes, 0)
+
+        if ($originalIndex -ge 0) {
+            $secondOriginal = [CodexFix.ByteSearch]::IndexOf($bytes, $patch.OriginalBytes, $originalIndex + 1)
+            if ($secondOriginal -ge 0) {
+                throw "Patch '$($patch.Name)' matched more than once. Refusing to patch this Codex version."
+            }
+            $originalMatches.Add([pscustomobject]@{ Patch = $patch; Offset = $originalIndex }) | Out-Null
         }
 
-        [Array]::Copy($patch.PatchedBytes, 0, $bytes, $originalIndex, $patch.PatchedBytes.Length)
+        if ($patchedIndex -ge 0) {
+            $secondPatched = [CodexFix.ByteSearch]::IndexOf($bytes, $patch.PatchedBytes, $patchedIndex + 1)
+            if ($secondPatched -ge 0) {
+                throw "Patch '$($patch.Name)' matched patched bytes more than once. Refusing to patch this Codex version."
+            }
+            $patchedMatches.Add([pscustomobject]@{ Patch = $patch; Offset = $patchedIndex }) | Out-Null
+        }
+    }
+
+    if ($originalMatches.Count -gt 0 -and $patchedMatches.Count -gt 0) {
+        throw "Patch group '$($patchGroup.Name)' matched both original and patched variants. Refusing to patch this Codex version."
+    }
+
+    if ($originalMatches.Count -gt 1) {
+        throw "Patch group '$($patchGroup.Name)' matched more than one original variant. Refusing to patch this Codex version."
+    }
+
+    if ($originalMatches.Count -eq 1) {
+        $match = $originalMatches[0]
+        $patch = $match.Patch
+        [Array]::Copy($patch.PatchedBytes, 0, $bytes, $match.Offset, $patch.PatchedBytes.Length)
         $changed = $true
-        $pendingWrites.Add([pscustomobject]@{ Offset = $originalIndex; Bytes = $patch.PatchedBytes }) | Out-Null
-        $results.Add([pscustomobject]@{ Name = $patch.Name; Status = "patched"; Offset = $originalIndex }) | Out-Null
+        $pendingWrites.Add([pscustomobject]@{ Offset = $match.Offset; Bytes = $patch.PatchedBytes }) | Out-Null
+        $results.Add([pscustomobject]@{ Name = $patch.Name; Status = "patched"; Offset = $match.Offset }) | Out-Null
         continue
     }
 
-    if ($patchedIndex -ge 0) {
-        $results.Add([pscustomobject]@{ Name = $patch.Name; Status = "already_patched"; Offset = $patchedIndex }) | Out-Null
+    if ($patchedMatches.Count -gt 1) {
+        throw "Patch group '$($patchGroup.Name)' matched more than one patched variant. Refusing to patch this Codex version."
+    }
+
+    if ($patchedMatches.Count -eq 1) {
+        $match = $patchedMatches[0]
+        $results.Add([pscustomobject]@{ Name = $match.Patch.Name; Status = "already_patched"; Offset = $match.Offset }) | Out-Null
         continue
     }
 
-    throw "Patch '$($patch.Name)' did not match original or patched bytes. This Codex version is not supported by this script."
+    throw "Patch group '$($patchGroup.Name)' did not match original or patched bytes. This Codex version is not supported by this script."
 }
 
 if ($changed) {
@@ -328,11 +391,20 @@ if ($changed) {
 }
 
 $verifyBytes = [System.IO.File]::ReadAllBytes($target)
-foreach ($patch in $patches) {
-    $originalIndex = [CodexFix.ByteSearch]::IndexOf($verifyBytes, $patch.OriginalBytes, 0)
-    $patchedIndex = [CodexFix.ByteSearch]::IndexOf($verifyBytes, $patch.PatchedBytes, 0)
-    if ($originalIndex -ge 0 -or $patchedIndex -lt 0) {
-        throw "Post-patch verification failed for '$($patch.Name)'."
+foreach ($patchGroup in $patchGroups) {
+    $patchedCount = 0
+    foreach ($patch in $patchGroup.Variants) {
+        $originalIndex = [CodexFix.ByteSearch]::IndexOf($verifyBytes, $patch.OriginalBytes, 0)
+        $patchedIndex = [CodexFix.ByteSearch]::IndexOf($verifyBytes, $patch.PatchedBytes, 0)
+        if ($originalIndex -ge 0) {
+            throw "Post-patch verification failed for '$($patch.Name)': original bytes are still present."
+        }
+        if ($patchedIndex -ge 0) {
+            $patchedCount++
+        }
+    }
+    if ($patchedCount -ne 1) {
+        throw "Post-patch verification failed for '$($patchGroup.Name)': expected exactly one patched variant, found $patchedCount."
     }
 }
 

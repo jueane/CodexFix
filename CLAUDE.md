@@ -68,10 +68,17 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\Repair-CodexWhamPolling.ps
 powershell -NoProfile -ExecutionPolicy Bypass -File .\Restore-CodexWhamPolling.ps1 -TargetAsar .\test\app.asar -BackupPath .\test\app.asar.codexfix.bak
 ```
 
-Codex `26.623.5546.0` 的预期测试哈希：
+已验证 Codex 版本的预期测试哈希：
+
+Codex `26.623.5546.0`：
 
 - 原始：`EADBBADB611619E31D352190042586268AD38EC1A180F821C48550072872F1CF`
 - 已修补：`41F067A25CA12ADCBE3FB2597B45D03444DD59A56086F6A7ADB9C46134EC20E7`
+
+Codex `26.707.3748.0`：
+
+- 原始：`8569B806651BA64C7A0D2FB2E072D4616F37DFE9A057BE6EC829B6FA1C193B10`
+- 已修补：`17765FFF1543F70C5EE4B9F20005FD5638CD33319A8309E7BFC1769BBDCF9F4B`
 
 检查补丁运行时是否仍产生原始失败特征：
 
@@ -83,12 +90,12 @@ Select-String -Path "$env:LOCALAPPDATA\Codex\Logs\2026\06\29\*.log" -Pattern 'de
 
 ## 架构
 
-`Repair-CodexWhamPolling.ps1` 是字节级修补器。它定位目标 `app.asar`，按字节读取，并应用两个等长 UTF-8 替换：
+`Repair-CodexWhamPolling.ps1` 是字节级修补器。它定位目标 `app.asar`，按字节读取，并应用两个补丁组；每个补丁组可以包含多个 Codex 版本的等长 UTF-8 片段变体：
 
-- 通过把 `/wham/tasks/list` 片段中的 `enabled:!0` 改成 `enabled:!1`，禁用侧边栏任务轮询查询。
-- 把 `/wham/usage` 调用替换成 `Promise.resolve(null)`，并用空格填充以保持字节长度不变。
+- 通过把 `/wham/tasks/list` 当前任务轮询片段中的 `enabled:!0` 改成 `enabled:!1`，禁用侧边栏任务轮询查询。
+- 把 `/wham/usage` 速率限制状态调用替换成 `Promise.resolve(null)`；补丁字符串较短时自动用空格填充以保持字节长度不变。
 
-修补器会拒绝模糊或不支持的输入：每个原始片段必须精确匹配一次，或者必须已经存在已修补片段。写入后它会验证原始片段已消失、已修补片段存在。
+修补器会拒绝模糊或不支持的输入：每个补丁组必须精确匹配一个原始变体，或者必须已经存在一个已修补变体。写入后它会验证所有原始变体已消失，且每个补丁组恰好存在一个已修补变体。
 
 `Restore-CodexWhamPolling.ps1` 会从备份还原目标 `app.asar`，并在复制后验证备份和目标的 SHA256 相同。
 
@@ -96,7 +103,7 @@ Select-String -Path "$env:LOCALAPPDATA\Codex\Logs\2026\06\29\*.log" -Pattern 'de
 
 `New-CodexPatchedShortcuts.ps1` 会在用户桌面和仓库根目录创建或刷新 `Codex Patched.lnk` 与 `Codex Original.lnk`。默认情况下，补丁版快捷方式指向 `portable\` 下版本号最高的包；`New-CodexPatchedCopy.ps1` 会显式传入刚修补好的包。原版快捷方式通过 Explorer 启动 `shell:AppsFolder\OpenAI.Codex_2p2nqsd0c76g0!App`，因此 Codex 升级后仍会打开当前安装的最新版。
 
-需要保留的调查背景：用户使用 `base_url + API key`，不是 ChatGPT 登录。不要把登录 ChatGPT 建议为修复方案。模型请求路径可用；卡顿与前端 `wham/*` 轮询失败相关，而不是 `config.toml` 或模型 API 配置。Codex `26.623.5546.0` 中相关 UI bundle 位置曾是：`webview/assets/sidebar-project-group-signals-B1b4ePo5.js` 对应 `/wham/tasks/list`，`webview/assets/thread-context-inputs-BoCUYCfG.js` 对应 `/wham/usage`。
+需要保留的调查背景：用户使用 `base_url + API key`，不是 ChatGPT 登录。不要把登录 ChatGPT 建议为修复方案。模型请求路径可用；卡顿与前端 `wham/*` 轮询失败相关，而不是 `config.toml` 或模型 API 配置。Codex `26.623.5546.0` 中相关 UI bundle 位置曾是：`webview/assets/sidebar-project-group-signals-B1b4ePo5.js` 对应 `/wham/tasks/list`，`webview/assets/thread-context-inputs-BoCUYCfG.js` 对应 `/wham/usage`。Codex `26.707.3748.0` 中已验证的新片段是当前任务轮询里的 `Ae.safeGet('/wham/tasks/list', ...)`，以及带 `supports_rewardless_invites:!0` 查询参数的 `hi.safeGet('/wham/usage', ...)`。
 
 ## 仓库状态和生成文件
 
