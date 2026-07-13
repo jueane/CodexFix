@@ -115,4 +115,6 @@ Select-String -Path "$env:LOCALAPPDATA\Codex\Logs\2026\06\29\*.log" -Pattern 'de
 
 优先使用 portable 外置副本流程。不要尝试修改 WindowsApps 中的已安装包；在这台机器上，即使尝试 `Administrators:F` 和 SYSTEM 复制也已经失败。撤销补丁版时直接删除对应的 portable 版本目录。
 
+用户要求提交和推送时，默认直接提交到 `main` 并推送 `origin/main`；不要创建临时功能分支，除非用户明确要求分支或 PR。
+
 Codex 更新后，重新运行 `New-CodexPatchedCopy.ps1`。如果脚本报告补丁字节不匹配原始或已修补字节，需要先检查新版 `app.asar` 中更新后的 `/wham/tasks/list` 和 `/wham/usage` 片段，再修改补丁字符串。
