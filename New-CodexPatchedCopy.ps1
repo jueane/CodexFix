@@ -96,7 +96,7 @@ if ($LASTEXITCODE -ne 0) {
 }
 
 $exe = Join-Path $target "app\Codex.exe"
-$shortcutScript = Join-Path $PSScriptRoot "New-CodexPatchedShortcuts.ps1"
+$shortcutScript = Join-Path $PSScriptRoot "Update-CodexShortcuts.ps1"
 
 Write-Host "Creating shortcuts for patched copy: $exe"
 $shortcutJson = & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $shortcutScript -PortablePackageDir $target

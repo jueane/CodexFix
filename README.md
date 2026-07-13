@@ -38,7 +38,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File D:\develop\CodexFix\New-Code
 如果只想重新生成快捷方式，运行：
 
 ```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File D:\develop\CodexFix\New-CodexPatchedShortcuts.ps1
+powershell -NoProfile -ExecutionPolicy Bypass -File D:\develop\CodexFix\Update-CodexShortcuts.ps1
 ```
 
 ## 更新补丁版
@@ -78,7 +78,7 @@ Select-String -Path "$env:LOCALAPPDATA\Codex\Logs\2026\07\01\*.log" -Pattern 'de
 ## 文件说明
 
 - `New-CodexPatchedCopy.ps1`：创建或刷新外置补丁版，并自动刷新快捷方式。
-- `New-CodexPatchedShortcuts.ps1`：只刷新快捷方式。
+- `Update-CodexShortcuts.ps1`：创建或刷新补丁版和原版启动快捷方式。
 - `Repair-CodexWhamPolling.ps1`：修补指定 `app.asar`。
 - `Restore-CodexWhamPolling.ps1`：从备份还原指定 `app.asar`。
 - `portable\`、`backups\`、`*.asar`、`*.lnk` 都是本地生成内容，不提交 git。

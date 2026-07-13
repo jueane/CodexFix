@@ -33,7 +33,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\New-CodexPatchedCopy.ps1
 刷新桌面和仓库根目录快捷方式：
 
 ```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File .\New-CodexPatchedShortcuts.ps1
+powershell -NoProfile -ExecutionPolicy Bypass -File .\Update-CodexShortcuts.ps1
 ```
 
 修补指定的 `app.asar`，通常用于测试副本或 portable 副本：
@@ -51,7 +51,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\Restore-CodexWhamPolling.p
 脚本编辑后验证 PowerShell 语法：
 
 ```powershell
-$files = @('.\Repair-CodexWhamPolling.ps1', '.\Restore-CodexWhamPolling.ps1', '.\New-CodexPatchedCopy.ps1', '.\New-CodexPatchedShortcuts.ps1')
+$files = @('.\Repair-CodexWhamPolling.ps1', '.\Restore-CodexWhamPolling.ps1', '.\New-CodexPatchedCopy.ps1', '.\Update-CodexShortcuts.ps1')
 foreach ($file in $files) {
   $tokens = $null; $errors = $null
   [System.Management.Automation.Language.Parser]::ParseFile((Resolve-Path $file), [ref]$tokens, [ref]$errors) | Out-Null
@@ -101,7 +101,7 @@ Select-String -Path "$env:LOCALAPPDATA\Codex\Logs\2026\06\29\*.log" -Pattern 'de
 
 `New-CodexPatchedCopy.ps1` 是这台机器上的首选流程。它会在 `C:\Program Files\WindowsApps` 下找到最新的 `OpenAI.Codex_*_x64__2p2nqsd0c76g0` 安装包，用 `robocopy` 复制完整包到 `portable\`，调用 `Repair-CodexWhamPolling.ps1` 修补副本中的 `app\resources\app.asar`，然后刷新快捷方式。这样可以避免修改 WindowsApps。
 
-`New-CodexPatchedShortcuts.ps1` 会在用户桌面和仓库根目录创建或刷新 `Codex Patched.lnk` 与 `Codex Original.lnk`。默认情况下，补丁版快捷方式指向 `portable\` 下版本号最高的包；`New-CodexPatchedCopy.ps1` 会显式传入刚修补好的包。原版快捷方式通过 Explorer 启动 `shell:AppsFolder\OpenAI.Codex_2p2nqsd0c76g0!App`，因此 Codex 升级后仍会打开当前安装的最新版。
+`Update-CodexShortcuts.ps1` 会在用户桌面和仓库根目录创建或刷新 `Codex Patched.lnk` 与 `Codex Original.lnk`。默认情况下，补丁版快捷方式指向 `portable\` 下版本号最高的包；`New-CodexPatchedCopy.ps1` 会显式传入刚修补好的包。原版快捷方式通过 Explorer 启动 `shell:AppsFolder\OpenAI.Codex_2p2nqsd0c76g0!App`，因此 Codex 升级后仍会打开当前安装的最新版。
 
 需要保留的调查背景：用户使用 `base_url + API key`，不是 ChatGPT 登录。不要把登录 ChatGPT 建议为修复方案。模型请求路径可用；卡顿与前端 `wham/*` 轮询失败相关，而不是 `config.toml` 或模型 API 配置。Codex `26.623.5546.0` 中相关 UI bundle 位置曾是：`webview/assets/sidebar-project-group-signals-B1b4ePo5.js` 对应 `/wham/tasks/list`，`webview/assets/thread-context-inputs-BoCUYCfG.js` 对应 `/wham/usage`。Codex `26.707.3748.0` 中已验证的新片段是当前任务轮询里的 `Ae.safeGet('/wham/tasks/list', ...)`，以及带 `supports_rewardless_invites:!0` 查询参数的 `hi.safeGet('/wham/usage', ...)`。
 
