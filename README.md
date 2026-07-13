@@ -9,6 +9,7 @@
 先完全退出 Codex，确认没有这些进程：
 
 ```text
+ChatGPT.exe
 Codex.exe
 codex.exe
 ```
@@ -33,7 +34,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File D:\develop\CodexFix\New-Code
 - `Codex Patched.lnk`：启动补丁版。
 - `Codex Original.lnk`：启动原版 Codex。
 
-这两个快捷方式都会出现在桌面和本目录。`Codex Original.lnk` 使用 Windows AppsFolder 应用 ID 启动，所以 Codex 官方版本升级后，它仍会打开当前安装的最新版。
+这两个快捷方式都会出现在桌面和本目录。`Codex Patched.lnk` 会读取 `AppxManifest.xml` 里的实际启动程序；新版包可能是 `app\ChatGPT.exe`，旧版包可能是 `app\Codex.exe`。`Codex Original.lnk` 使用 Windows AppsFolder 应用 ID 启动，所以 Codex 官方版本升级后，它仍会打开当前安装的最新版。
 
 如果只想重新生成快捷方式，运行：
 
@@ -59,6 +60,8 @@ powershell -NoProfile -ExecutionPolicy Bypass -File D:\develop\CodexFix\New-Code
 powershell -NoProfile -ExecutionPolicy Bypass -File D:\develop\CodexFix\New-CodexPatchedCopy.ps1 -Force
 ```
 
+如果要撤销某个补丁版，先关闭 Codex，然后直接删除对应的 `portable\OpenAI.Codex_<版本号>_x64__2p2nqsd0c76g0\` 目录。之后需要补丁版时，重新运行 `New-CodexPatchedCopy.ps1` 即可。
+
 ## 验证
 
 启动补丁版后，可以检查当天日志里是否还出现这些内容：
@@ -80,5 +83,4 @@ Select-String -Path "$env:LOCALAPPDATA\Codex\Logs\2026\07\01\*.log" -Pattern 'de
 - `New-CodexPatchedCopy.ps1`：创建或刷新外置补丁版，并自动刷新快捷方式。
 - `Update-CodexShortcuts.ps1`：创建或刷新补丁版和原版启动快捷方式。
 - `Repair-CodexWhamPolling.ps1`：修补指定 `app.asar`。
-- `Restore-CodexWhamPolling.ps1`：从备份还原指定 `app.asar`。
 - `portable\`、`backups\`、`*.asar`、`*.lnk` 都是本地生成内容，不提交 git。

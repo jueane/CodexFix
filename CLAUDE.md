@@ -42,16 +42,12 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\Update-CodexShortcuts.ps1
 powershell -NoProfile -ExecutionPolicy Bypass -File .\Repair-CodexWhamPolling.ps1 -TargetAsar .\test\app.asar -BackupPath .\test\app.asar.codexfix.bak
 ```
 
-从备份还原指定的 `app.asar`：
-
-```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File .\Restore-CodexWhamPolling.ps1 -TargetAsar .\test\app.asar -BackupPath .\test\app.asar.codexfix.bak
-```
+撤销 portable 补丁版时，不再单独还原 `app.asar`；关闭 Codex 后直接删除对应的 `portable\OpenAI.Codex_<版本号>_x64__2p2nqsd0c76g0\` 目录，需要时重新运行 `New-CodexPatchedCopy.ps1` 生成新的补丁副本。
 
 脚本编辑后验证 PowerShell 语法：
 
 ```powershell
-$files = @('.\Repair-CodexWhamPolling.ps1', '.\Restore-CodexWhamPolling.ps1', '.\New-CodexPatchedCopy.ps1', '.\Update-CodexShortcuts.ps1')
+$files = @('.\Repair-CodexWhamPolling.ps1', '.\New-CodexPatchedCopy.ps1', '.\Update-CodexShortcuts.ps1')
 foreach ($file in $files) {
   $tokens = $null; $errors = $null
   [System.Management.Automation.Language.Parser]::ParseFile((Resolve-Path $file), [ref]$tokens, [ref]$errors) | Out-Null
@@ -59,13 +55,11 @@ foreach ($file in $files) {
 }
 ```
 
-本地测试 `app.asar` 副本存在时，可做端到端验证：
+本地测试 `app.asar` 副本存在时，可验证修补和重复运行的幂等性。需要回到原始状态时，重新复制测试用 `app.asar`，不要依赖还原脚本：
 
 ```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File .\Restore-CodexWhamPolling.ps1 -TargetAsar .\test\app.asar -BackupPath .\test\app.asar.codexfix.bak
 powershell -NoProfile -ExecutionPolicy Bypass -File .\Repair-CodexWhamPolling.ps1 -TargetAsar .\test\app.asar -BackupPath .\test\app.asar.codexfix.bak
 powershell -NoProfile -ExecutionPolicy Bypass -File .\Repair-CodexWhamPolling.ps1 -TargetAsar .\test\app.asar -BackupPath .\test\app.asar.codexfix.bak
-powershell -NoProfile -ExecutionPolicy Bypass -File .\Restore-CodexWhamPolling.ps1 -TargetAsar .\test\app.asar -BackupPath .\test\app.asar.codexfix.bak
 ```
 
 已验证 Codex 版本的预期测试哈希：
@@ -97,11 +91,9 @@ Select-String -Path "$env:LOCALAPPDATA\Codex\Logs\2026\06\29\*.log" -Pattern 'de
 
 修补器会拒绝模糊或不支持的输入：每个补丁组必须精确匹配一个原始变体，或者必须已经存在一个已修补变体。写入后它会验证所有原始变体已消失，且每个补丁组恰好存在一个已修补变体。
 
-`Restore-CodexWhamPolling.ps1` 会从备份还原目标 `app.asar`，并在复制后验证备份和目标的 SHA256 相同。
-
 `New-CodexPatchedCopy.ps1` 是这台机器上的首选流程。它会在 `C:\Program Files\WindowsApps` 下找到最新的 `OpenAI.Codex_*_x64__2p2nqsd0c76g0` 安装包，用 `robocopy` 复制完整包到 `portable\`，调用 `Repair-CodexWhamPolling.ps1` 修补副本中的 `app\resources\app.asar`，然后刷新快捷方式。这样可以避免修改 WindowsApps。
 
-`Update-CodexShortcuts.ps1` 会在用户桌面和仓库根目录创建或刷新 `Codex Patched.lnk` 与 `Codex Original.lnk`。默认情况下，补丁版快捷方式指向 `portable\` 下版本号最高的包；`New-CodexPatchedCopy.ps1` 会显式传入刚修补好的包。原版快捷方式通过 Explorer 启动 `shell:AppsFolder\OpenAI.Codex_2p2nqsd0c76g0!App`，因此 Codex 升级后仍会打开当前安装的最新版。
+`Update-CodexShortcuts.ps1` 会在用户桌面和仓库根目录创建或刷新 `Codex Patched.lnk` 与 `Codex Original.lnk`。默认情况下，补丁版快捷方式指向 `portable\` 下版本号最高的包，并从 `AppxManifest.xml` 读取实际启动程序；新版包可能是 `app\ChatGPT.exe`，旧版包可能是 `app\Codex.exe`。`New-CodexPatchedCopy.ps1` 会显式传入刚修补好的包。原版快捷方式通过 Explorer 启动 `shell:AppsFolder\OpenAI.Codex_2p2nqsd0c76g0!App`，因此 Codex 升级后仍会打开当前安装的最新版。
 
 需要保留的调查背景：用户使用 `base_url + API key`，不是 ChatGPT 登录。不要把登录 ChatGPT 建议为修复方案。模型请求路径可用；卡顿与前端 `wham/*` 轮询失败相关，而不是 `config.toml` 或模型 API 配置。Codex `26.623.5546.0` 中相关 UI bundle 位置曾是：`webview/assets/sidebar-project-group-signals-B1b4ePo5.js` 对应 `/wham/tasks/list`，`webview/assets/thread-context-inputs-BoCUYCfG.js` 对应 `/wham/usage`。Codex `26.707.3748.0` 中已验证的新片段是当前任务轮询里的 `Ae.safeGet('/wham/tasks/list', ...)`，以及带 `supports_rewardless_invites:!0` 查询参数的 `hi.safeGet('/wham/usage', ...)`。
 
@@ -119,8 +111,8 @@ Select-String -Path "$env:LOCALAPPDATA\Codex\Logs\2026\06\29\*.log" -Pattern 'de
 
 ## 操作注意事项
 
-修补或重新创建 portable 副本前，先关闭正在运行的 `Codex.exe` 和 `codex.exe` 进程。`New-CodexPatchedCopy.ps1` 会强制检查这一点。
+修补或重新创建 portable 副本前，先关闭正在运行的 `ChatGPT.exe`、`Codex.exe` 和 `codex.exe` 进程。`New-CodexPatchedCopy.ps1` 会强制检查这一点。
 
-优先使用 portable 外置副本流程。`Repair-CodexWhamPolling.ps1` 和 `Restore-CodexWhamPolling.ps1` 中保留的 WindowsApps 原地操作选项，只适用于权限允许的机器；在这台机器上，即使尝试 `Administrators:F` 和 SYSTEM 复制也已经失败。
+优先使用 portable 外置副本流程。不要尝试修改 WindowsApps 中的已安装包；在这台机器上，即使尝试 `Administrators:F` 和 SYSTEM 复制也已经失败。撤销补丁版时直接删除对应的 portable 版本目录。
 
 Codex 更新后，重新运行 `New-CodexPatchedCopy.ps1`。如果脚本报告补丁字节不匹配原始或已修补字节，需要先检查新版 `app.asar` 中更新后的 `/wham/tasks/list` 和 `/wham/usage` 片段，再修改补丁字符串。

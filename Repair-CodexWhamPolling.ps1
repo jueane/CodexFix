@@ -44,7 +44,7 @@ function Assert-CodexClosedIfInstalledTarget {
     param([string]$Path)
     $prefix = (Join-Path $env:ProgramFiles "WindowsApps\OpenAI.Codex_")
     if ($Path.StartsWith($prefix, [System.StringComparison]::OrdinalIgnoreCase)) {
-        $running = @(Get-Process -Name "Codex","codex" -ErrorAction SilentlyContinue)
+        $running = @(Get-Process -Name "ChatGPT","Codex","codex" -ErrorAction SilentlyContinue)
         if ($running.Count -gt 0) {
             $ids = ($running | Select-Object -ExpandProperty Id) -join ", "
             throw "Close Codex before patching the installed app.asar. Running process IDs: $ids"

@@ -21,6 +21,36 @@ function Get-CodexPackageVersion {
     return [version]"0.0.0.0"
 }
 
+function Resolve-CodexPackageExecutable {
+    param([string]$PackageDir)
+
+    $manifest = Join-Path $PackageDir "AppxManifest.xml"
+    if (Test-Path -LiteralPath $manifest) {
+        try {
+            [xml]$manifestXml = Get-Content -LiteralPath $manifest -Raw
+            $application = $manifestXml.SelectSingleNode("//*[local-name()='Application' and @Executable]")
+            if ($null -ne $application) {
+                $relativeExecutable = $application.Executable.Replace('/', '\')
+                $candidate = Join-Path $PackageDir $relativeExecutable
+                if (Test-Path -LiteralPath $candidate) {
+                    return (Resolve-Path -LiteralPath $candidate).Path
+                }
+            }
+        } catch {
+            Write-Warning "Could not read app executable from manifest: $manifest"
+        }
+    }
+
+    foreach ($relativeExecutable in @("app\ChatGPT.exe", "app\Codex.exe")) {
+        $candidate = Join-Path $PackageDir $relativeExecutable
+        if (Test-Path -LiteralPath $candidate) {
+            return (Resolve-Path -LiteralPath $candidate).Path
+        }
+    }
+
+    throw "Codex executable not found under package directory: $PackageDir"
+}
+
 function Get-DefaultPortablePackageDir {
     param([string]$Root)
 
@@ -29,7 +59,14 @@ function Get-DefaultPortablePackageDir {
     }
 
     $candidate = Get-ChildItem -LiteralPath $Root -Directory -Filter "OpenAI.Codex_*_x64__2p2nqsd0c76g0" -ErrorAction SilentlyContinue |
-        Where-Object { Test-Path -LiteralPath (Join-Path $_.FullName "app\Codex.exe") } |
+        Where-Object {
+            try {
+                Resolve-CodexPackageExecutable -PackageDir $_.FullName | Out-Null
+                return $true
+            } catch {
+                return $false
+            }
+        } |
         Sort-Object @{ Expression = { Get-CodexPackageVersion -Directory $_ }; Descending = $true }, @{ Expression = { $_.LastWriteTime }; Descending = $true } |
         Select-Object -First 1
 
@@ -122,10 +159,7 @@ if ([string]::IsNullOrWhiteSpace($ShortcutDirectory)) {
 $ShortcutName = Resolve-ShortcutName -Name $ShortcutName
 $OriginalShortcutName = Resolve-ShortcutName -Name $OriginalShortcutName
 
-$exe = Join-Path $PortablePackageDir "app\Codex.exe"
-if (-not (Test-Path -LiteralPath $exe)) {
-    throw "Codex executable not found: $exe"
-}
+$exe = Resolve-CodexPackageExecutable -PackageDir $PortablePackageDir
 
 $desktop = [Environment]::GetFolderPath("Desktop")
 if ([string]::IsNullOrWhiteSpace($desktop)) {
