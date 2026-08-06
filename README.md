@@ -52,7 +52,19 @@ powershell -NoProfile -ExecutionPolicy Bypass -File D:\develop\CodexFix\New-Code
 
 新版本会复制到新的 `portable\OpenAI.Codex_<版本号>_x64__2p2nqsd0c76g0\` 目录，并自动刷新 `Codex Patched.lnk` 指向新补丁版。
 
-当前脚本已验证支持 Codex `26.623.5546.0` 和 `26.707.3748.0`。如果未来官方版本再次变更导致字节不匹配，需要先检查新版 `app.asar` 里的 `/wham/tasks/list` 和 `/wham/usage` 片段，再更新 `Repair-CodexWhamPolling.ps1`。
+当前脚本已验证支持 Codex `26.623.5546.0`、`26.707.3748.0` 和 `26.730.8199.0`。Codex `26.730.8199.0` 的原始 `app.asar` SHA256 为：
+
+```text
+ACBA5F408B7C6C909FFBFDF3C7D3F10660897BFBBB10F916A78505986B44B772
+```
+
+按当前补丁变体修补后的预期 SHA256 为：
+
+```text
+CA6E07DA9D656FCB0349AC7566CA9E978550F28EA624CBE0F6B48F83CEA8614C
+```
+
+如果未来官方版本再次变更导致字节不匹配，需要先检查新版 `app.asar` 里的 `/wham/tasks/list` 和 `/wham/usage` 片段，再更新 `Repair-CodexWhamPolling.ps1`。
 
 如果要重建同一个版本号的 portable 目录，使用：
 

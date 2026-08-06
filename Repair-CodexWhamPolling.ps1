@@ -246,7 +246,11 @@ $patchGroups = @(
             (New-PatchSpec `
                 -Name "Disable sidebar /wham/tasks/list polling (26.707)" `
                 -Original 'enabled:!0,placeholderData:i,queryFn:async()=>{try{return(await Ae.safeGet(`/wham/tasks/list`,{parameters:{query:{limit:20,task_filter:`current`}}})).items}' `
-                -Patched  'enabled:!1,placeholderData:i,queryFn:async()=>{try{return(await Ae.safeGet(`/wham/tasks/list`,{parameters:{query:{limit:20,task_filter:`current`}}})).items}')
+                -Patched  'enabled:!1,placeholderData:i,queryFn:async()=>{try{return(await Ae.safeGet(`/wham/tasks/list`,{parameters:{query:{limit:20,task_filter:`current`}}})).items}'),
+            (New-PatchSpec `
+                -Name "Disable sidebar /wham/tasks/list polling (26.730)" `
+                -Original 'enabled:!0,placeholderData:R,queryFn:async()=>{try{return(await ig.safeGet(`/wham/tasks/list`,{parameters:{query:{limit:20,task_filter:`current`}}})).items}' `
+                -Patched  'enabled:!1,placeholderData:R,queryFn:async()=>{try{return(await ig.safeGet(`/wham/tasks/list`,{parameters:{query:{limit:20,task_filter:`current`}}})).items}')
         )),
     (New-PatchGroup `
         -Name "Disable /wham/usage rate-limit polling" `
@@ -258,7 +262,11 @@ $patchGroups = @(
             (New-PatchSpec `
                 -Name "Disable /wham/usage rate-limit polling (26.707)" `
                 -Original 'return await hi.safeGet(`/wham/usage`,{parameters:{query:{supports_rewardless_invites:!0}}})' `
-                -Patched  'return await(Promise.resolve(null))')
+                -Patched  'return await(Promise.resolve(null))'),
+            (New-PatchSpec `
+                -Name "Disable /wham/usage rate-limit polling (26.730)" `
+                -Original 'return await ig.safeGet(`/wham/usage`)' `
+                -Patched  'return await Promise.resolve(null);')
         ))
 )
 

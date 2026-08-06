@@ -74,6 +74,11 @@ Codex `26.707.3748.0`：
 - 原始：`8569B806651BA64C7A0D2FB2E072D4616F37DFE9A057BE6EC829B6FA1C193B10`
 - 已修补：`17765FFF1543F70C5EE4B9F20005FD5638CD33319A8309E7BFC1769BBDCF9F4B`
 
+Codex `26.730.8199.0`：
+
+- 原始：`ACBA5F408B7C6C909FFBFDF3C7D3F10660897BFBBB10F916A78505986B44B772`
+- 已修补：`CA6E07DA9D656FCB0349AC7566CA9E978550F28EA624CBE0F6B48F83CEA8614C`
+
 检查补丁运行时是否仍产生原始失败特征：
 
 ```powershell
@@ -95,7 +100,7 @@ Select-String -Path "$env:LOCALAPPDATA\Codex\Logs\2026\06\29\*.log" -Pattern 'de
 
 `Update-CodexShortcuts.ps1` 会在用户桌面和仓库根目录创建或刷新 `Codex Patched.lnk` 与 `Codex Original.lnk`。默认情况下，补丁版快捷方式指向 `portable\` 下版本号最高的包，并从 `AppxManifest.xml` 读取实际启动程序；新版包可能是 `app\ChatGPT.exe`，旧版包可能是 `app\Codex.exe`。`New-CodexPatchedCopy.ps1` 会显式传入刚修补好的包。原版快捷方式通过 Explorer 启动 `shell:AppsFolder\OpenAI.Codex_2p2nqsd0c76g0!App`，因此 Codex 升级后仍会打开当前安装的最新版。
 
-需要保留的调查背景：用户使用 `base_url + API key`，不是 ChatGPT 登录。不要把登录 ChatGPT 建议为修复方案。模型请求路径可用；卡顿与前端 `wham/*` 轮询失败相关，而不是 `config.toml` 或模型 API 配置。Codex `26.623.5546.0` 中相关 UI bundle 位置曾是：`webview/assets/sidebar-project-group-signals-B1b4ePo5.js` 对应 `/wham/tasks/list`，`webview/assets/thread-context-inputs-BoCUYCfG.js` 对应 `/wham/usage`。Codex `26.707.3748.0` 中已验证的新片段是当前任务轮询里的 `Ae.safeGet('/wham/tasks/list', ...)`，以及带 `supports_rewardless_invites:!0` 查询参数的 `hi.safeGet('/wham/usage', ...)`。
+需要保留的调查背景：用户使用 `base_url + API key`，不是 ChatGPT 登录。不要把登录 ChatGPT 建议为修复方案。模型请求路径可用；卡顿与前端 `wham/*` 轮询失败相关，而不是 `config.toml` 或模型 API 配置。Codex `26.623.5546.0` 中相关 UI bundle 位置曾是：`webview/assets/sidebar-project-group-signals-B1b4ePo5.js` 对应 `/wham/tasks/list`，`webview/assets/thread-context-inputs-BoCUYCfG.js` 对应 `/wham/usage`。Codex `26.707.3748.0` 中已验证的新片段是当前任务轮询里的 `Ae.safeGet('/wham/tasks/list', ...)`，以及带 `supports_rewardless_invites:!0` 查询参数的 `hi.safeGet('/wham/usage', ...)`。Codex `26.730.8199.0` 中两个目标都位于 `webview/assets/app-initial-Gl25w_2b.js`：当前任务轮询使用 `placeholderData:R` 和 `ig.safeGet('/wham/tasks/list', ...)`；速率限制轮询使用不带查询参数的 `ig.safeGet('/wham/usage')`。26.730 的 usage 修补文本保留分号，以确保它的已修补字节不与旧版本变体重复。
 
 ## 仓库状态和生成文件
 
