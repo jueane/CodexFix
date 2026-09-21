@@ -81,22 +81,31 @@ function New-CodexShortcut {
     param(
         [object]$Shell,
         [string]$ShortcutPath,
-        [string]$Executable
+        [string]$Executable,
+        [string]$LauncherScript
     )
 
+    $powerShell = Join-Path $PSHOME "powershell.exe"
+    if (-not (Test-Path -LiteralPath $powerShell)) {
+        $powerShell = "powershell.exe"
+    }
+
     $workingDirectory = Split-Path -Parent $Executable
+    $arguments = "-NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File `"$LauncherScript`" -Executable `"$Executable`""
     $shortcut = $Shell.CreateShortcut($ShortcutPath)
-    $shortcut.TargetPath = $Executable
-    $shortcut.Arguments = ""
+    $shortcut.TargetPath = $powerShell
+    $shortcut.Arguments = $arguments
     $shortcut.WorkingDirectory = $workingDirectory
     $shortcut.IconLocation = "$Executable,0"
-    $shortcut.Description = "Codex patched portable copy"
+    $shortcut.Description = "Codex patched copy with Windows package identity"
     $shortcut.Save()
 
     return [pscustomobject]@{
         Kind = "Patched"
         Shortcut = $ShortcutPath
-        Target = $Executable
+        Target = $powerShell
+        Arguments = $arguments
+        Executable = $Executable
         WorkingDirectory = $workingDirectory
     }
 }
@@ -160,6 +169,11 @@ $ShortcutName = Resolve-ShortcutName -Name $ShortcutName
 $OriginalShortcutName = Resolve-ShortcutName -Name $OriginalShortcutName
 
 $exe = Resolve-CodexPackageExecutable -PackageDir $PortablePackageDir
+$launcherScript = Join-Path $PSScriptRoot "Start-CodexPatched.ps1"
+if (-not (Test-Path -LiteralPath $launcherScript)) {
+    throw "Patched Codex launcher script not found: $launcherScript"
+}
+$launcherScript = (Resolve-Path -LiteralPath $launcherScript).Path
 
 $desktop = [Environment]::GetFolderPath("Desktop")
 if ([string]::IsNullOrWhiteSpace($desktop)) {
@@ -179,7 +193,7 @@ $originalShortcutTargets = @(
 $shell = New-Object -ComObject WScript.Shell
 $shortcuts = @()
 $shortcuts += @($patchedShortcutTargets | ForEach-Object {
-    New-CodexShortcut -Shell $shell -ShortcutPath $_ -Executable $exe
+    New-CodexShortcut -Shell $shell -ShortcutPath $_ -Executable $exe -LauncherScript $launcherScript
 })
 $shortcuts += @($originalShortcutTargets | ForEach-Object {
     New-CodexOriginalShortcut -Shell $shell -ShortcutPath $_

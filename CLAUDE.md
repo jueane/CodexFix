@@ -62,22 +62,12 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\Repair-CodexWhamPolling.ps
 powershell -NoProfile -ExecutionPolicy Bypass -File .\Repair-CodexWhamPolling.ps1 -TargetAsar .\test\app.asar -BackupPath .\test\app.asar.codexfix.bak
 ```
 
-已验证 Codex 版本的预期测试哈希：
+补丁兼容策略：始终只维护当前最新 Codex 版本，不保留旧版本的补丁变体或向后兼容代码。Codex 更新后，先确认新版片段，再用新版匹配替换旧版匹配。
 
-Codex `26.623.5546.0`：
+当前维护目标 Codex `26.915.4065.0`：
 
-- 原始：`EADBBADB611619E31D352190042586268AD38EC1A180F821C48550072872F1CF`
-- 已修补：`41F067A25CA12ADCBE3FB2597B45D03444DD59A56086F6A7ADB9C46134EC20E7`
-
-Codex `26.707.3748.0`：
-
-- 原始：`8569B806651BA64C7A0D2FB2E072D4616F37DFE9A057BE6EC829B6FA1C193B10`
-- 已修补：`17765FFF1543F70C5EE4B9F20005FD5638CD33319A8309E7BFC1769BBDCF9F4B`
-
-Codex `26.730.8199.0`：
-
-- 原始：`ACBA5F408B7C6C909FFBFDF3C7D3F10660897BFBBB10F916A78505986B44B772`
-- 已修补：`CA6E07DA9D656FCB0349AC7566CA9E978550F28EA624CBE0F6B48F83CEA8614C`
+- 原始 `app.asar` SHA-256：`B8AEB817CD1EE6EF50EFE8A97985D3BE41DE89688A5ADDFE0A444E1E52348096`
+- 已修补 `app.asar` SHA-256：`B0937E89AC9248158F0CA8D89F21617B7A28561C0C8F344C604FC5A004F55D05`
 
 检查补丁运行时是否仍产生原始失败特征：
 
@@ -89,18 +79,18 @@ Select-String -Path "$env:LOCALAPPDATA\Codex\Logs\2026\06\29\*.log" -Pattern 'de
 
 ## 架构
 
-`Repair-CodexWhamPolling.ps1` 是字节级修补器。它定位目标 `app.asar`，按字节读取，并应用两个补丁组；每个补丁组可以包含多个 Codex 版本的等长 UTF-8 片段变体：
+`Repair-CodexWhamPolling.ps1` 是字节级修补器。它定位目标 `app.asar`，按字节读取，并应用两个只针对当前最新 Codex 版本的补丁组：
 
 - 通过把 `/wham/tasks/list` 当前任务轮询片段中的 `enabled:!0` 改成 `enabled:!1`，禁用侧边栏任务轮询查询。
-- 把 `/wham/usage` 速率限制状态调用替换成 `Promise.resolve(null)`；补丁字符串较短时自动用空格填充以保持字节长度不变。
+- 把获取 `/wham/usage` 的完整函数替换为直接返回 `null`；补丁字符串较短时自动用空格填充以保持字节长度不变。
 
-修补器会拒绝模糊或不支持的输入：每个补丁组必须精确匹配一个原始变体，或者必须已经存在一个已修补变体。写入后它会验证所有原始变体已消失，且每个补丁组恰好存在一个已修补变体。
+修补器会拒绝模糊或不支持的输入：每个补丁组必须精确匹配当前版本的一个原始片段，或者必须已经存在一个已修补片段。写入后它会验证原始片段已消失，且每个补丁组恰好存在一个已修补片段。
 
 `New-CodexPatchedCopy.ps1` 是这台机器上的首选流程。它会在 `C:\Program Files\WindowsApps` 下找到最新的 `OpenAI.Codex_*_x64__2p2nqsd0c76g0` 安装包，用 `robocopy` 复制完整包到 `portable\`，调用 `Repair-CodexWhamPolling.ps1` 修补副本中的 `app\resources\app.asar`，然后刷新快捷方式。这样可以避免修改 WindowsApps。
 
-`Update-CodexShortcuts.ps1` 会在用户桌面和仓库根目录创建或刷新 `Codex Patched.lnk` 与 `Codex Original.lnk`。默认情况下，补丁版快捷方式指向 `portable\` 下版本号最高的包，并从 `AppxManifest.xml` 读取实际启动程序；新版包可能是 `app\ChatGPT.exe`，旧版包可能是 `app\Codex.exe`。`New-CodexPatchedCopy.ps1` 会显式传入刚修补好的包。原版快捷方式通过 Explorer 启动 `shell:AppsFolder\OpenAI.Codex_2p2nqsd0c76g0!App`，因此 Codex 升级后仍会打开当前安装的最新版。
+`Update-CodexShortcuts.ps1` 会在用户桌面和仓库根目录创建或刷新 `Codex Patched.lnk` 与 `Codex Original.lnk`。补丁版快捷方式调用 `Start-CodexPatched.ps1`，后者通过 `Invoke-CommandInDesktopPackage` 借用已安装 Codex 的 Windows 包身份启动外置 `ChatGPT.exe`，以满足 `26.915.4065.0` 新增的包身份要求。`New-CodexPatchedCopy.ps1` 会显式传入刚修补好的包。原版快捷方式通过 Explorer 启动 `shell:AppsFolder\OpenAI.Codex_2p2nqsd0c76g0!App`，因此 Codex 升级后仍会打开当前安装的最新版。
 
-需要保留的调查背景：用户使用 `base_url + API key`，不是 ChatGPT 登录。不要把登录 ChatGPT 建议为修复方案。模型请求路径可用；卡顿与前端 `wham/*` 轮询失败相关，而不是 `config.toml` 或模型 API 配置。Codex `26.623.5546.0` 中相关 UI bundle 位置曾是：`webview/assets/sidebar-project-group-signals-B1b4ePo5.js` 对应 `/wham/tasks/list`，`webview/assets/thread-context-inputs-BoCUYCfG.js` 对应 `/wham/usage`。Codex `26.707.3748.0` 中已验证的新片段是当前任务轮询里的 `Ae.safeGet('/wham/tasks/list', ...)`，以及带 `supports_rewardless_invites:!0` 查询参数的 `hi.safeGet('/wham/usage', ...)`。Codex `26.730.8199.0` 中两个目标都位于 `webview/assets/app-initial-Gl25w_2b.js`：当前任务轮询使用 `placeholderData:R` 和 `ig.safeGet('/wham/tasks/list', ...)`；速率限制轮询使用不带查询参数的 `ig.safeGet('/wham/usage')`。26.730 的 usage 修补文本保留分号，以确保它的已修补字节不与旧版本变体重复。
+需要保留的调查背景：用户使用 `base_url + API key`，不是 ChatGPT 登录。不要把登录 ChatGPT 建议为修复方案。模型请求路径可用；卡顿与前端 `wham/*` 轮询失败相关，而不是 `config.toml` 或模型 API 配置。当前维护目标 Codex `26.915.4065.0` 的任务轮询片段使用 `placeholderData:Od` 和 `oy.safeGet('/wham/tasks/list', ...)`；usage 轮询位于 `async function EIa(...)`，使用 `oy.safeGet('/wham/usage', ...)`。旧版本定位信息不保留。
 
 ## 仓库状态和生成文件
 
@@ -122,4 +112,4 @@ Select-String -Path "$env:LOCALAPPDATA\Codex\Logs\2026\06\29\*.log" -Pattern 'de
 
 用户要求提交和推送时，默认直接提交到 `main` 并推送 `origin/main`；不要创建临时功能分支，除非用户明确要求分支或 PR。
 
-Codex 更新后，重新运行 `New-CodexPatchedCopy.ps1`。如果脚本报告补丁字节不匹配原始或已修补字节，需要先检查新版 `app.asar` 中更新后的 `/wham/tasks/list` 和 `/wham/usage` 片段，再修改补丁字符串。
+Codex 更新后，先检查新版 `app.asar` 中更新后的 `/wham/tasks/list` 和 `/wham/usage` 片段，把修补器改为只支持该最新版本并移除旧版匹配，然后重新运行 `New-CodexPatchedCopy.ps1`。

@@ -34,7 +34,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File D:\develop\CodexFix\New-Code
 - `Codex Patched.lnk`：启动补丁版。
 - `Codex Original.lnk`：启动原版 Codex。
 
-这两个快捷方式都会出现在桌面和本目录。`Codex Patched.lnk` 会读取 `AppxManifest.xml` 里的实际启动程序；新版包可能是 `app\ChatGPT.exe`，旧版包可能是 `app\Codex.exe`。`Codex Original.lnk` 使用 Windows AppsFolder 应用 ID 启动，所以 Codex 官方版本升级后，它仍会打开当前安装的最新版。
+这两个快捷方式都会出现在桌面和本目录。`Codex Patched.lnk` 会通过 `Start-CodexPatched.ps1` 在已安装 Codex 的 Windows 包身份中启动外置补丁副本，避免新版直接运行时报 `The process has no package identity`。`Codex Original.lnk` 使用 Windows AppsFolder 应用 ID 启动，所以 Codex 官方版本升级后，它仍会打开当前安装的最新版。
 
 如果只想重新生成快捷方式，运行：
 
@@ -52,19 +52,14 @@ powershell -NoProfile -ExecutionPolicy Bypass -File D:\develop\CodexFix\New-Code
 
 新版本会复制到新的 `portable\OpenAI.Codex_<版本号>_x64__2p2nqsd0c76g0\` 目录，并自动刷新 `Codex Patched.lnk` 指向新补丁版。
 
-当前脚本已验证支持 Codex `26.623.5546.0`、`26.707.3748.0` 和 `26.730.8199.0`。Codex `26.730.8199.0` 的原始 `app.asar` SHA256 为：
+当前脚本只支持最新维护目标 Codex `26.915.4065.0`，不保留旧版 Codex 的补丁兼容代码。
 
-```text
-ACBA5F408B7C6C909FFBFDF3C7D3F10660897BFBBB10F916A78505986B44B772
-```
+该版本的 `app.asar` SHA-256（文件指纹）为：
 
-按当前补丁变体修补后的预期 SHA256 为：
+- 原始：`B8AEB817CD1EE6EF50EFE8A97985D3BE41DE89688A5ADDFE0A444E1E52348096`
+- 已修补：`B0937E89AC9248158F0CA8D89F21617B7A28561C0C8F344C604FC5A004F55D05`
 
-```text
-CA6E07DA9D656FCB0349AC7566CA9E978550F28EA624CBE0F6B48F83CEA8614C
-```
-
-如果未来官方版本再次变更导致字节不匹配，需要先检查新版 `app.asar` 里的 `/wham/tasks/list` 和 `/wham/usage` 片段，再更新 `Repair-CodexWhamPolling.ps1`。
+Codex 每次更新后，都需要先检查新版 `app.asar` 里的 `/wham/tasks/list` 和 `/wham/usage` 片段，再把 `Repair-CodexWhamPolling.ps1` 更新为只匹配该最新版本；旧版本匹配应同时移除。
 
 如果要重建同一个版本号的 portable 目录，使用：
 
@@ -94,5 +89,6 @@ Select-String -Path "$env:LOCALAPPDATA\Codex\Logs\2026\07\01\*.log" -Pattern 'de
 
 - `New-CodexPatchedCopy.ps1`：创建或刷新外置补丁版，并自动刷新快捷方式。
 - `Update-CodexShortcuts.ps1`：创建或刷新补丁版和原版启动快捷方式。
+- `Start-CodexPatched.ps1`：借用已安装 Codex 的 Windows 包身份启动外置补丁副本。
 - `Repair-CodexWhamPolling.ps1`：修补指定 `app.asar`。
 - `portable\`、`backups\`、`*.asar`、`*.lnk` 都是本地生成内容，不提交 git。

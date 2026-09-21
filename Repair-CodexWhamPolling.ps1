@@ -52,6 +52,21 @@ function Assert-CodexClosedIfInstalledTarget {
     }
 }
 
+function Get-Sha256Hash {
+    param([string]$Path)
+    $stream = $null
+    $sha256 = $null
+    try {
+        $stream = [System.IO.File]::OpenRead($Path)
+        $sha256 = [System.Security.Cryptography.SHA256]::Create()
+        $hashBytes = $sha256.ComputeHash($stream)
+        return ([System.BitConverter]::ToString($hashBytes)).Replace("-", "")
+    } finally {
+        if ($null -ne $sha256) { $sha256.Dispose() }
+        if ($null -ne $stream) { $stream.Dispose() }
+    }
+}
+
 function Test-ReadWriteAccess {
     param([string]$Path)
     $stream = $null
@@ -122,7 +137,15 @@ $ErrorActionPreference = "Stop"
 
 try {
     [System.IO.File]::Copy($Source, $Destination, $true)
-    $hash = (Get-FileHash -LiteralPath $Destination -Algorithm SHA256).Hash
+    $stream = [System.IO.File]::OpenRead($Destination)
+    $sha256 = [System.Security.Cryptography.SHA256]::Create()
+    try {
+        $hashBytes = $sha256.ComputeHash($stream)
+        $hash = ([System.BitConverter]::ToString($hashBytes)).Replace("-", "")
+    } finally {
+        $sha256.Dispose()
+        $stream.Dispose()
+    }
     [pscustomobject]@{ Ok = $true; TargetSha256 = $hash } | ConvertTo-Json -Depth 3 | Set-Content -LiteralPath $ResultPath -Encoding UTF8
     exit 0
 } catch {
@@ -240,33 +263,17 @@ $patchGroups = @(
         -Name "Disable sidebar /wham/tasks/list polling" `
         -Variants @(
             (New-PatchSpec `
-                -Name "Disable sidebar /wham/tasks/list polling (26.623)" `
-                -Original 'enabled:!0,placeholderData:n,queryFn:async()=>{try{return(await se.safeGet(`/wham/tasks/list`,{parameters:{query:{limit:20,task_filter:`current`}}})).items}' `
-                -Patched  'enabled:!1,placeholderData:n,queryFn:async()=>{try{return(await se.safeGet(`/wham/tasks/list`,{parameters:{query:{limit:20,task_filter:`current`}}})).items}'),
-            (New-PatchSpec `
-                -Name "Disable sidebar /wham/tasks/list polling (26.707)" `
-                -Original 'enabled:!0,placeholderData:i,queryFn:async()=>{try{return(await Ae.safeGet(`/wham/tasks/list`,{parameters:{query:{limit:20,task_filter:`current`}}})).items}' `
-                -Patched  'enabled:!1,placeholderData:i,queryFn:async()=>{try{return(await Ae.safeGet(`/wham/tasks/list`,{parameters:{query:{limit:20,task_filter:`current`}}})).items}'),
-            (New-PatchSpec `
-                -Name "Disable sidebar /wham/tasks/list polling (26.730)" `
-                -Original 'enabled:!0,placeholderData:R,queryFn:async()=>{try{return(await ig.safeGet(`/wham/tasks/list`,{parameters:{query:{limit:20,task_filter:`current`}}})).items}' `
-                -Patched  'enabled:!1,placeholderData:R,queryFn:async()=>{try{return(await ig.safeGet(`/wham/tasks/list`,{parameters:{query:{limit:20,task_filter:`current`}}})).items}')
+                -Name "Disable sidebar /wham/tasks/list polling (26.915)" `
+                -Original 'enabled:!0,placeholderData:Od,queryFn:async()=>{try{return(await oy.safeGet(`/wham/tasks/list`,{parameters:{query:{limit:20,task_filter:`current`}}})).items}' `
+                -Patched  'enabled:!1,placeholderData:Od,queryFn:async()=>{try{return(await oy.safeGet(`/wham/tasks/list`,{parameters:{query:{limit:20,task_filter:`current`}}})).items}')
         )),
     (New-PatchGroup `
         -Name "Disable /wham/usage rate-limit polling" `
         -Variants @(
             (New-PatchSpec `
-                -Name "Disable /wham/usage rate-limit polling (26.623)" `
-                -Original 'return await on.safeGet(`/wham/usage`)' `
-                -Patched  'return await Promise.resolve(null)    '),
-            (New-PatchSpec `
-                -Name "Disable /wham/usage rate-limit polling (26.707)" `
-                -Original 'return await hi.safeGet(`/wham/usage`,{parameters:{query:{supports_rewardless_invites:!0}}})' `
-                -Patched  'return await(Promise.resolve(null))'),
-            (New-PatchSpec `
-                -Name "Disable /wham/usage rate-limit polling (26.730)" `
-                -Original 'return await ig.safeGet(`/wham/usage`)' `
-                -Patched  'return await Promise.resolve(null);')
+                -Name "Disable /wham/usage rate-limit polling (26.915)" `
+                -Original 'async function EIa({additionalHeaders:e,signal:t}){try{let n=await oy.safeGet(`/wham/usage`,{additionalHeaders:{"OAI-App-Brand":Qv.toLowerCase(),...e},signal:t}),r=OIa.safeParse(n),i=NIa.safeParse(n),a=AIa.safeParse(n),o=MIa.safeParse(n);return{...n,ambient_usage:wIa.parse(n.ambient_usage),sidebar_usage_warnings:o.success?o.data.sidebar_usage_warnings:void 0,rate_limit_upsell:r.success?r.data.rate_limit_upsell:void 0,model_picker_upsell:i.success?i.data.model_picker_upsell:void 0,rate_limit_warning:a.success?a.data.rate_limit_warning:void 0}}catch(e){if(e instanceof Iv&&[401,403,404].includes(e.status))return null;throw e}}' `
+                -Patched  'async function EIa(){return null}')
         ))
 )
 
@@ -420,6 +427,6 @@ foreach ($patchGroup in $patchGroups) {
     Target = $target
     Backup = $backup
     Changed = $changed
-    TargetSha256 = (Get-FileHash -LiteralPath $target -Algorithm SHA256).Hash
+    TargetSha256 = Get-Sha256Hash -Path $target
     Results = $results
 } | ConvertTo-Json -Depth 5
