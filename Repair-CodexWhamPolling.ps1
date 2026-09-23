@@ -263,17 +263,17 @@ $patchGroups = @(
         -Name "Disable sidebar /wham/tasks/list polling" `
         -Variants @(
             (New-PatchSpec `
-                -Name "Disable sidebar /wham/tasks/list polling (26.915)" `
-                -Original 'enabled:!0,placeholderData:Od,queryFn:async()=>{try{return(await oy.safeGet(`/wham/tasks/list`,{parameters:{query:{limit:20,task_filter:`current`}}})).items}' `
-                -Patched  'enabled:!1,placeholderData:Od,queryFn:async()=>{try{return(await oy.safeGet(`/wham/tasks/list`,{parameters:{query:{limit:20,task_filter:`current`}}})).items}')
+                -Name "Disable sidebar /wham/tasks/list polling (26.917)" `
+                -Original 'enabled:!0,placeholderData:Fr,queryFn:async()=>{try{return(await kg.safeGet(`/wham/tasks/list`,{parameters:{query:{limit:20,task_filter:`current`}}})).items}' `
+                -Patched  'enabled:!1,placeholderData:Fr,queryFn:async()=>{try{return(await kg.safeGet(`/wham/tasks/list`,{parameters:{query:{limit:20,task_filter:`current`}}})).items}')
         )),
     (New-PatchGroup `
         -Name "Disable /wham/usage rate-limit polling" `
         -Variants @(
             (New-PatchSpec `
-                -Name "Disable /wham/usage rate-limit polling (26.915)" `
-                -Original 'async function EIa({additionalHeaders:e,signal:t}){try{let n=await oy.safeGet(`/wham/usage`,{additionalHeaders:{"OAI-App-Brand":Qv.toLowerCase(),...e},signal:t}),r=OIa.safeParse(n),i=NIa.safeParse(n),a=AIa.safeParse(n),o=MIa.safeParse(n);return{...n,ambient_usage:wIa.parse(n.ambient_usage),sidebar_usage_warnings:o.success?o.data.sidebar_usage_warnings:void 0,rate_limit_upsell:r.success?r.data.rate_limit_upsell:void 0,model_picker_upsell:i.success?i.data.model_picker_upsell:void 0,rate_limit_warning:a.success?a.data.rate_limit_warning:void 0}}catch(e){if(e instanceof Iv&&[401,403,404].includes(e.status))return null;throw e}}' `
-                -Patched  'async function EIa(){return null}')
+                -Name "Disable /wham/usage rate-limit polling (26.917)" `
+                -Original 'async function YOn({additionalHeaders:e,signal:t}){try{return NOn(await kg.safeGet(`/wham/usage`,{additionalHeaders:{"OAI-App-Brand":mg.toLowerCase(),...e},signal:t}))}catch(e){if(e instanceof xg&&[401,403,404].includes(e.status))return null;throw e}}' `
+                -Patched  'async function YOn(){return null}')
         ))
 )
 

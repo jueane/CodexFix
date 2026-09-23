@@ -64,10 +64,10 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\Repair-CodexWhamPolling.ps
 
 补丁兼容策略：始终只维护当前最新 Codex 版本，不保留旧版本的补丁变体或向后兼容代码。Codex 更新后，先确认新版片段，再用新版匹配替换旧版匹配。
 
-当前维护目标 Codex `26.915.4065.0`：
+当前维护目标 Codex `26.917.8451.0`：
 
-- 原始 `app.asar` SHA-256：`B8AEB817CD1EE6EF50EFE8A97985D3BE41DE89688A5ADDFE0A444E1E52348096`
-- 已修补 `app.asar` SHA-256：`B0937E89AC9248158F0CA8D89F21617B7A28561C0C8F344C604FC5A004F55D05`
+- 原始 `app.asar` SHA-256：`18D9C47F7FCCED4124A6AC4C62AD3DD67AE107C22D7BCA62029FA81204B86240`
+- 已修补 `app.asar` SHA-256：`3860E8508D1C044F3A52AFA256EC9ADEFDF708733A9D73D643B549852FB7D7DD`
 
 检查补丁运行时是否仍产生原始失败特征：
 
@@ -88,9 +88,9 @@ Select-String -Path "$env:LOCALAPPDATA\Codex\Logs\2026\06\29\*.log" -Pattern 'de
 
 `New-CodexPatchedCopy.ps1` 是这台机器上的首选流程。它会在 `C:\Program Files\WindowsApps` 下找到最新的 `OpenAI.Codex_*_x64__2p2nqsd0c76g0` 安装包，用 `robocopy` 复制完整包到 `portable\`，调用 `Repair-CodexWhamPolling.ps1` 修补副本中的 `app\resources\app.asar`，然后刷新快捷方式。这样可以避免修改 WindowsApps。
 
-`Update-CodexShortcuts.ps1` 会在用户桌面和仓库根目录创建或刷新 `Codex Patched.lnk` 与 `Codex Original.lnk`。补丁版快捷方式调用 `Start-CodexPatched.ps1`，后者通过 `Invoke-CommandInDesktopPackage` 借用已安装 Codex 的 Windows 包身份启动外置 `ChatGPT.exe`，以满足 `26.915.4065.0` 新增的包身份要求。`New-CodexPatchedCopy.ps1` 会显式传入刚修补好的包。原版快捷方式通过 Explorer 启动 `shell:AppsFolder\OpenAI.Codex_2p2nqsd0c76g0!App`，因此 Codex 升级后仍会打开当前安装的最新版。
+`Update-CodexShortcuts.ps1` 会在用户桌面和仓库根目录创建或刷新 `Codex Patched.lnk` 与 `Codex Original.lnk`。补丁版快捷方式调用 `Start-CodexPatched.ps1`，后者通过 `Invoke-CommandInDesktopPackage` 借用已安装 Codex 的 Windows 包身份启动外置 `ChatGPT.exe`，以满足新版的包身份要求。`New-CodexPatchedCopy.ps1` 会显式传入刚修补好的包。原版快捷方式通过 Explorer 启动 `shell:AppsFolder\OpenAI.Codex_2p2nqsd0c76g0!App`，因此 Codex 升级后仍会打开当前安装的最新版。
 
-需要保留的调查背景：用户使用 `base_url + API key`，不是 ChatGPT 登录。不要把登录 ChatGPT 建议为修复方案。模型请求路径可用；卡顿与前端 `wham/*` 轮询失败相关，而不是 `config.toml` 或模型 API 配置。当前维护目标 Codex `26.915.4065.0` 的任务轮询片段使用 `placeholderData:Od` 和 `oy.safeGet('/wham/tasks/list', ...)`；usage 轮询位于 `async function EIa(...)`，使用 `oy.safeGet('/wham/usage', ...)`。旧版本定位信息不保留。
+需要保留的调查背景：用户使用 `base_url + API key`，不是 ChatGPT 登录。不要把登录 ChatGPT 建议为修复方案。模型请求路径可用；卡顿与前端 `wham/*` 轮询失败相关，而不是 `config.toml` 或模型 API 配置。当前维护目标 Codex `26.917.8451.0` 的任务轮询片段使用 `placeholderData:Fr` 和 `kg.safeGet('/wham/tasks/list', ...)`；usage 轮询位于 `async function YOn(...)`，使用 `kg.safeGet('/wham/usage', ...)`。旧版本定位信息不保留。
 
 ## 仓库状态和生成文件
 

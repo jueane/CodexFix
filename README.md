@@ -52,12 +52,12 @@ powershell -NoProfile -ExecutionPolicy Bypass -File D:\develop\CodexFix\New-Code
 
 新版本会复制到新的 `portable\OpenAI.Codex_<版本号>_x64__2p2nqsd0c76g0\` 目录，并自动刷新 `Codex Patched.lnk` 指向新补丁版。
 
-当前脚本只支持最新维护目标 Codex `26.915.4065.0`，不保留旧版 Codex 的补丁兼容代码。
+当前脚本只支持最新维护目标 Codex `26.917.8451.0`，不保留旧版 Codex 的补丁兼容代码。
 
 该版本的 `app.asar` SHA-256（文件指纹）为：
 
-- 原始：`B8AEB817CD1EE6EF50EFE8A97985D3BE41DE89688A5ADDFE0A444E1E52348096`
-- 已修补：`B0937E89AC9248158F0CA8D89F21617B7A28561C0C8F344C604FC5A004F55D05`
+- 原始：`18D9C47F7FCCED4124A6AC4C62AD3DD67AE107C22D7BCA62029FA81204B86240`
+- 已修补：`3860E8508D1C044F3A52AFA256EC9ADEFDF708733A9D73D643B549852FB7D7DD`
 
 Codex 每次更新后，都需要先检查新版 `app.asar` 里的 `/wham/tasks/list` 和 `/wham/usage` 片段，再把 `Repair-CodexWhamPolling.ps1` 更新为只匹配该最新版本；旧版本匹配应同时移除。
 
