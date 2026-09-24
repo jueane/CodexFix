@@ -30,7 +30,7 @@
 powershell -NoProfile -ExecutionPolicy Bypass -File .\New-CodexPatchedCopy.ps1
 ```
 
-刷新桌面和仓库根目录快捷方式：
+刷新桌面和仓库根目录的原版快捷方式：
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File .\Update-CodexShortcuts.ps1
@@ -47,7 +47,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\Repair-CodexWhamPolling.ps
 脚本编辑后验证 PowerShell 语法：
 
 ```powershell
-$files = @('.\Repair-CodexWhamPolling.ps1', '.\New-CodexPatchedCopy.ps1', '.\Update-CodexShortcuts.ps1')
+$files = @('.\Repair-CodexWhamPolling.ps1', '.\New-CodexPatchedCopy.ps1', '.\Update-CodexShortcuts.ps1', '.\Start-CodexPatched.ps1')
 foreach ($file in $files) {
   $tokens = $null; $errors = $null
   [System.Management.Automation.Language.Parser]::ParseFile((Resolve-Path $file), [ref]$tokens, [ref]$errors) | Out-Null
@@ -88,7 +88,7 @@ Select-String -Path "$env:LOCALAPPDATA\Codex\Logs\2026\06\29\*.log" -Pattern 'de
 
 `New-CodexPatchedCopy.ps1` 是这台机器上的首选流程。它会在 `C:\Program Files\WindowsApps` 下找到最新的 `OpenAI.Codex_*_x64__2p2nqsd0c76g0` 安装包，用 `robocopy` 复制完整包到 `portable\`，调用 `Repair-CodexWhamPolling.ps1` 修补副本中的 `app\resources\app.asar`，然后刷新快捷方式。这样可以避免修改 WindowsApps。
 
-`Update-CodexShortcuts.ps1` 会在用户桌面和仓库根目录创建或刷新 `Codex Patched.lnk` 与 `Codex Original.lnk`。补丁版快捷方式调用 `Start-CodexPatched.ps1`，后者通过 `Invoke-CommandInDesktopPackage` 借用已安装 Codex 的 Windows 包身份启动外置 `ChatGPT.exe`，以满足新版的包身份要求。`New-CodexPatchedCopy.ps1` 会显式传入刚修补好的包。原版快捷方式通过 Explorer 启动 `shell:AppsFolder\OpenAI.Codex_2p2nqsd0c76g0!App`，因此 Codex 升级后仍会打开当前安装的最新版。
+`Update-CodexShortcuts.ps1` 只在用户桌面和仓库根目录创建或刷新 `Codex Original.lnk`，通过 Explorer 启动 `shell:AppsFolder\OpenAI.Codex_2p2nqsd0c76g0!App`。双击 `Start-CodexPatched.cmd` 启动补丁版；它调用同目录的 `Start-CodexPatched.ps1`，从脚本旁的 `portable\` 中选版本号最新的 `app\ChatGPT.exe`，通过 `Invoke-CommandInDesktopPackage` 借用已安装 Codex 的 Windows 包身份启动。Windows 默认双击 `.ps1` 不保证运行，故保留 `.cmd` 入口。不再生成 `Codex Patched.lnk`。
 
 需要保留的调查背景：用户使用 `base_url + API key`，不是 ChatGPT 登录。不要把登录 ChatGPT 建议为修复方案。模型请求路径可用；卡顿与前端 `wham/*` 轮询失败相关，而不是 `config.toml` 或模型 API 配置。当前维护目标 Codex `26.917.8451.0` 的任务轮询片段使用 `placeholderData:Fr` 和 `kg.safeGet('/wham/tasks/list', ...)`；usage 轮询位于 `async function YOn(...)`，使用 `kg.safeGet('/wham/usage', ...)`。旧版本定位信息不保留。
 
@@ -99,7 +99,7 @@ Select-String -Path "$env:LOCALAPPDATA\Codex\Logs\2026\06\29\*.log" -Pattern 'de
 - `portable/` 包含完整复制出来的 Codex app 包，不应提交。
 - `backups/` 包含生成的 `app.asar` 备份，不应提交。
 - `*.asar` 和 `*.asar.*` 会被忽略，包括测试和备份二进制文件。
-- `*.lnk` 快捷方式是本地生成文件，不应提交。
+- `Codex Original.lnk` 快捷方式是本地生成文件，不应提交。
 - `.learnings/` 是本地诊断历史，会被忽略。
 
 跟踪源码应保持为 PowerShell 脚本、`README.md`、`CLAUDE.md`、`.gitignore`，以及少量元数据，例如 `test/original.sha256.txt`。

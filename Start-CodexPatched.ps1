@@ -1,29 +1,27 @@
 #Requires -Version 5.1
-[CmdletBinding()]
-param(
-    [Parameter(Mandatory = $true)]
-    [string]$Executable
-)
-
 Set-StrictMode -Version Latest
-$ErrorActionPreference = "Stop"
+$ErrorActionPreference = 'Stop'
 
-$resolvedExecutable = (Resolve-Path -LiteralPath $Executable).Path
-$package = Get-AppxPackage -Name "OpenAI.Codex" -ErrorAction SilentlyContinue |
-    Sort-Object Version -Descending |
+$portableRoot = Join-Path $PSScriptRoot 'portable'
+$copy = Get-ChildItem -LiteralPath $portableRoot -Directory -Filter 'OpenAI.Codex_*_x64__2p2nqsd0c76g0' -ErrorAction Stop |
+    Where-Object { $_.Name -match '^OpenAI\.Codex_\d+\.\d+\.\d+\.\d+_x64__2p2nqsd0c76g0$' -and
+        (Test-Path -LiteralPath (Join-Path $_.FullName 'app\ChatGPT.exe')) } |
+    Sort-Object { [version]($_.Name -replace '^OpenAI\.Codex_(\d+\.\d+\.\d+\.\d+)_x64__2p2nqsd0c76g0$', '$1') } -Descending |
     Select-Object -First 1
 
-if ($null -eq $package) {
-    throw "The installed OpenAI.Codex package was not found. Install Codex before starting the patched copy."
+if ($null -eq $copy) {
+    throw "No portable Codex copy with app\ChatGPT.exe found in $portableRoot. Run New-CodexPatchedCopy.ps1 first."
 }
 
-$invokeCommand = Get-Command Invoke-CommandInDesktopPackage -ErrorAction SilentlyContinue
-if ($null -eq $invokeCommand) {
-    throw "Invoke-CommandInDesktopPackage is unavailable on this Windows installation."
+$package = Get-AppxPackage -Name 'OpenAI.Codex' |
+    Sort-Object Version -Descending |
+    Select-Object -First 1
+if ($null -eq $package) {
+    throw 'The installed OpenAI.Codex package was not found.'
 }
 
 Invoke-CommandInDesktopPackage `
     -PackageFamilyName $package.PackageFamilyName `
-    -AppId "App" `
-    -Command $resolvedExecutable `
+    -AppId 'App' `
+    -Command (Join-Path $copy.FullName 'app\ChatGPT.exe') `
     -PreventBreakaway

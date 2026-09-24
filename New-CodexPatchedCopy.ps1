@@ -10,36 +10,6 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 
-function Resolve-CodexPackageExecutable {
-    param([string]$PackageDir)
-
-    $manifest = Join-Path $PackageDir "AppxManifest.xml"
-    if (Test-Path -LiteralPath $manifest) {
-        try {
-            [xml]$manifestXml = Get-Content -LiteralPath $manifest -Raw
-            $application = $manifestXml.SelectSingleNode("//*[local-name()='Application' and @Executable]")
-            if ($null -ne $application) {
-                $relativeExecutable = $application.Executable.Replace('/', '\')
-                $candidate = Join-Path $PackageDir $relativeExecutable
-                if (Test-Path -LiteralPath $candidate) {
-                    return (Resolve-Path -LiteralPath $candidate).Path
-                }
-            }
-        } catch {
-            Write-Warning "Could not read app executable from manifest: $manifest"
-        }
-    }
-
-    foreach ($relativeExecutable in @("app\ChatGPT.exe", "app\Codex.exe")) {
-        $candidate = Join-Path $PackageDir $relativeExecutable
-        if (Test-Path -LiteralPath $candidate) {
-            return (Resolve-Path -LiteralPath $candidate).Path
-        }
-    }
-
-    throw "Codex executable not found under package directory: $PackageDir"
-}
-
 function Get-DefaultCodexPackageDir {
     $windowsApps = Join-Path $env:ProgramFiles "WindowsApps"
     if (-not (Test-Path -LiteralPath $windowsApps)) {
@@ -48,14 +18,8 @@ function Get-DefaultCodexPackageDir {
 
     $candidate = Get-ChildItem -LiteralPath $windowsApps -Directory -Filter "OpenAI.Codex_*_x64__2p2nqsd0c76g0" -ErrorAction SilentlyContinue |
         Where-Object {
-            $hasAppAsar = Test-Path -LiteralPath (Join-Path $_.FullName "app\resources\app.asar")
-            if (-not $hasAppAsar) { return $false }
-            try {
-                Resolve-CodexPackageExecutable -PackageDir $_.FullName | Out-Null
-                return $true
-            } catch {
-                return $false
-            }
+            (Test-Path -LiteralPath (Join-Path $_.FullName 'app\resources\app.asar')) -and
+            (Test-Path -LiteralPath (Join-Path $_.FullName 'app\ChatGPT.exe'))
         } |
         Sort-Object LastWriteTime -Descending |
         Select-Object -First 1
@@ -131,22 +95,23 @@ if ($LASTEXITCODE -ne 0) {
     throw "Repair script failed for portable copy with exit code $LASTEXITCODE"
 }
 
-$exe = Resolve-CodexPackageExecutable -PackageDir $target
-$shortcutScript = Join-Path $PSScriptRoot "Update-CodexShortcuts.ps1"
-
-Write-Host "Creating shortcuts for patched copy: $exe"
-$shortcutJson = & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $shortcutScript -PortablePackageDir $target
-if ($LASTEXITCODE -ne 0) {
-    throw "Shortcut script failed for portable copy with exit code $LASTEXITCODE"
+$exe = Join-Path $target 'app\ChatGPT.exe'
+if (-not (Test-Path -LiteralPath $exe)) {
+    throw "Copied package does not contain app\ChatGPT.exe: $exe"
 }
-$shortcutResult = ($shortcutJson -join [Environment]::NewLine) | ConvertFrom-Json
+
+$shortcutScript = Join-Path $PSScriptRoot 'Update-CodexShortcuts.ps1'
+$originalShortcuts = & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $shortcutScript
+if ($LASTEXITCODE -ne 0) {
+    throw "Original shortcut script failed with exit code $LASTEXITCODE"
+}
 
 [pscustomobject]@{
     SourcePackage = $source
     PortablePackage = $target
     PortableAsar = $portableAsar
     PortableBackup = $portableBackup
-    ShortcutScript = $shortcutScript
-    Shortcuts = $shortcutResult.Shortcuts
+    StartScript = (Join-Path $PSScriptRoot 'Start-CodexPatched.cmd')
+    OriginalShortcuts = $originalShortcuts
     Executable = $exe
 } | ConvertTo-Json -Depth 3
