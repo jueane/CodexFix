@@ -24,20 +24,11 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\New-CodexPatchedCopy.ps1
 
 - 查找 C 盘已安装的最新版 Codex。
 - 复制到 `D:\develop\CodexFix\portable\`。
-- 修补复制出来的 `app\resources\app.asar`。
-- 刷新桌面和本目录的 `Codex Original.lnk`。
+- 修补复制出来的 `app\resources\app.asar`，备份原文件，并刷新桌面和本目录的 `Codex Original.lnk`。
 
 ## 启动
 
-双击本目录的 `Start-CodexPatched.cmd` 启动补丁版。它调用同目录的 `Start-CodexPatched.ps1`；脚本会从自身位置的 `portable\` 中选择版本号最新、含有 `app\ChatGPT.exe` 的副本，并借用已安装 Codex 的 Windows 包身份启动，避免 `The process has no package identity`。
-
-Windows 默认双击 `.ps1` 通常会打开编辑器；在 PowerShell 中也可直接执行 `& .\Start-CodexPatched.ps1`。桌面和本目录保留的 `Codex Original.lnk` 用于启动原版，升级后仍打开当前安装版本。
-
-如果只想重新生成原版快捷方式，在本目录运行：
-
-```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File .\Update-CodexShortcuts.ps1
-```
+双击本目录的 `Start-CodexPatched.cmd` 启动补丁版。它调用同目录的 `Start-CodexPatched.ps1`；后者从脚本位置的 `portable\` 中选择版本号最新、含有 `app\ChatGPT.exe` 的副本，并通过 PowerShell 借用已安装 Codex 的 Windows 包身份启动，避免 `The process has no package identity`。
 
 ## 更新补丁版
 
@@ -56,7 +47,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\New-CodexPatchedCopy.ps1
 - 原始：`18D9C47F7FCCED4124A6AC4C62AD3DD67AE107C22D7BCA62029FA81204B86240`
 - 已修补：`3860E8508D1C044F3A52AFA256EC9ADEFDF708733A9D73D643B549852FB7D7DD`
 
-Codex 每次更新后，都需要先检查新版 `app.asar` 里的 `/wham/tasks/list` 和 `/wham/usage` 片段，再把 `Repair-CodexWhamPolling.ps1` 更新为只匹配该最新版本；旧版本匹配应同时移除。
+Codex 每次更新后，都需要先检查新版 `app.asar` 里的 `/wham/tasks/list` 和 `/wham/usage` 片段，再把 `New-CodexPatchedCopy.ps1` 中的补丁片段更新为只匹配该最新版本；旧版本匹配应同时移除。
 
 如果要重建同一个版本号的 portable 目录，使用：
 
@@ -84,9 +75,7 @@ Select-String -Path "$env:LOCALAPPDATA\Codex\Logs\2026\07\01\*.log" -Pattern 'de
 
 ## 文件说明
 
-- `New-CodexPatchedCopy.ps1`：创建或刷新外置补丁版，并刷新原版快捷方式。
-- `Update-CodexShortcuts.ps1`：创建或刷新原版启动快捷方式。
+- `New-CodexPatchedCopy.ps1`：创建或刷新外置补丁版，修补和验证副本，并刷新原版快捷方式。
 - `Start-CodexPatched.cmd`：可双击的补丁版启动入口。
 - `Start-CodexPatched.ps1`：选择最新外置副本并借用已安装 Codex 的 Windows 包身份启动。
-- `Repair-CodexWhamPolling.ps1`：修补指定 `app.asar`。
 - `portable\`、`backups\`、`*.asar`、`*.lnk` 都是本地生成内容，不提交 git。

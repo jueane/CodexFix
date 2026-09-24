@@ -47,6 +47,116 @@ function Assert-CodexClosed {
     }
 }
 
+function New-PatchSpec {
+    param([string]$Name, [string]$Original, [string]$Patched)
+    $encoding = [System.Text.Encoding]::UTF8
+    $originalBytes = $encoding.GetBytes($Original)
+    $patchedBytes = $encoding.GetBytes($Patched.PadRight($Original.Length))
+    if ($originalBytes.Length -ne $patchedBytes.Length) {
+        throw "Patch '$Name' changes the byte length."
+    }
+    [pscustomobject]@{ Name = $Name; OriginalBytes = $originalBytes; PatchedBytes = $patchedBytes }
+}
+
+function Update-CodexAsar {
+    param([string]$Path, [string]$Backup)
+
+    if (-not ('CodexFix.ByteSearch' -as [type])) {
+        Add-Type -TypeDefinition @'
+namespace CodexFix {
+    public static class ByteSearch {
+        public static int IndexOf(byte[] haystack, byte[] needle, int start) {
+            if (haystack == null || needle == null || needle.Length == 0) return -1;
+            int limit = haystack.Length - needle.Length;
+            for (int i = start; i <= limit; i++) {
+                if (haystack[i] != needle[0]) continue;
+                int j = 1;
+                for (; j < needle.Length && haystack[i + j] == needle[j]; j++) {}
+                if (j == needle.Length) return i;
+            }
+            return -1;
+        }
+    }
+}
+'@
+    }
+
+    $patches = @(
+        (New-PatchSpec -Name 'Disable /wham/tasks/list polling' `
+            -Original 'enabled:!0,placeholderData:Fr,queryFn:async()=>{try{return(await kg.safeGet(`/wham/tasks/list`,{parameters:{query:{limit:20,task_filter:`current`}}})).items}' `
+            -Patched  'enabled:!1,placeholderData:Fr,queryFn:async()=>{try{return(await kg.safeGet(`/wham/tasks/list`,{parameters:{query:{limit:20,task_filter:`current`}}})).items}'),
+        (New-PatchSpec -Name 'Disable /wham/usage polling' `
+            -Original 'async function YOn({additionalHeaders:e,signal:t}){try{return NOn(await kg.safeGet(`/wham/usage`,{additionalHeaders:{"OAI-App-Brand":mg.toLowerCase(),...e},signal:t}))}catch(e){if(e instanceof xg&&[401,403,404].includes(e.status))return null;throw e}}' `
+            -Patched  'async function YOn(){return null}')
+    )
+
+    $bytes = [System.IO.File]::ReadAllBytes($Path)
+    $writes = New-Object System.Collections.Generic.List[object]
+    foreach ($patch in $patches) {
+        $original = [CodexFix.ByteSearch]::IndexOf($bytes, $patch.OriginalBytes, 0)
+        $patched = [CodexFix.ByteSearch]::IndexOf($bytes, $patch.PatchedBytes, 0)
+        if ($original -ge 0 -and [CodexFix.ByteSearch]::IndexOf($bytes, $patch.OriginalBytes, $original + 1) -ge 0) {
+            throw "Patch '$($patch.Name)' matched more than once."
+        }
+        if ($patched -ge 0 -and [CodexFix.ByteSearch]::IndexOf($bytes, $patch.PatchedBytes, $patched + 1) -ge 0) {
+            throw "Patched bytes for '$($patch.Name)' matched more than once."
+        }
+        if ($original -ge 0 -and $patched -ge 0) { throw "Both original and patched bytes found for '$($patch.Name)'." }
+        if ($original -lt 0 -and $patched -lt 0) { throw "Unsupported Codex version: '$($patch.Name)' not found." }
+        if ($original -ge 0) {
+            [Array]::Copy($patch.PatchedBytes, 0, $bytes, $original, $patch.PatchedBytes.Length)
+            $writes.Add([pscustomobject]@{ Offset = $original; Bytes = $patch.PatchedBytes })
+        }
+    }
+
+    if ($writes.Count -gt 0) {
+        if (Test-Path -LiteralPath $Backup) {
+            Write-Host "Backup already exists, keeping it: $Backup"
+        } else {
+            Copy-Item -LiteralPath $Path -Destination $Backup
+            Write-Host "Backup written: $Backup"
+        }
+        $stream = $null
+        try {
+            $stream = [System.IO.File]::Open($Path, [System.IO.FileMode]::Open, [System.IO.FileAccess]::ReadWrite, [System.IO.FileShare]::Read)
+            foreach ($write in $writes) {
+                $stream.Seek($write.Offset, [System.IO.SeekOrigin]::Begin) | Out-Null
+                $stream.Write($write.Bytes, 0, $write.Bytes.Length)
+            }
+            $stream.Flush($true)
+        } finally {
+            if ($null -ne $stream) { $stream.Dispose() }
+        }
+    }
+
+    $verified = [System.IO.File]::ReadAllBytes($Path)
+    foreach ($patch in $patches) {
+        $original = [CodexFix.ByteSearch]::IndexOf($verified, $patch.OriginalBytes, 0)
+        $patched = [CodexFix.ByteSearch]::IndexOf($verified, $patch.PatchedBytes, 0)
+        if ($original -ge 0 -or $patched -lt 0 -or
+            [CodexFix.ByteSearch]::IndexOf($verified, $patch.PatchedBytes, $patched + 1) -ge 0) {
+            throw "Post-patch verification failed for '$($patch.Name)'."
+        }
+    }
+}
+
+function Update-OriginalShortcuts {
+    $shell = New-Object -ComObject WScript.Shell
+    $explorer = Join-Path $env:WINDIR 'explorer.exe'
+    $paths = @(
+        (Join-Path ([Environment]::GetFolderPath('Desktop')) 'Codex Original.lnk'),
+        (Join-Path $PSScriptRoot 'Codex Original.lnk')
+    ) | Select-Object -Unique
+    foreach ($path in $paths) {
+        $shortcut = $shell.CreateShortcut($path)
+        $shortcut.TargetPath = $explorer
+        $shortcut.Arguments = 'shell:AppsFolder\OpenAI.Codex_2p2nqsd0c76g0!App'
+        $shortcut.Description = 'Codex original installed app'
+        $shortcut.Save()
+    }
+    $paths
+}
+
 $source = Resolve-PackageDir -Path $SourcePackageDir
 Assert-CodexClosed
 
@@ -83,28 +193,20 @@ if ($robocopyExit -ge 8) {
 
 $portableAsar = Join-Path $target "app\resources\app.asar"
 $portableBackup = Join-Path $target "app\resources\app.asar.codexfix.bak"
-$repairScript = Join-Path $PSScriptRoot "Repair-CodexWhamPolling.ps1"
 
 if (-not (Test-Path -LiteralPath $portableAsar)) {
     throw "Copied package does not contain app.asar: $portableAsar"
 }
 
 Write-Host "Patching writable copy: $portableAsar"
-& powershell.exe -NoProfile -ExecutionPolicy Bypass -File $repairScript -TargetAsar $portableAsar -BackupPath $portableBackup
-if ($LASTEXITCODE -ne 0) {
-    throw "Repair script failed for portable copy with exit code $LASTEXITCODE"
-}
+Update-CodexAsar -Path $portableAsar -Backup $portableBackup
 
 $exe = Join-Path $target 'app\ChatGPT.exe'
 if (-not (Test-Path -LiteralPath $exe)) {
     throw "Copied package does not contain app\ChatGPT.exe: $exe"
 }
 
-$shortcutScript = Join-Path $PSScriptRoot 'Update-CodexShortcuts.ps1'
-$originalShortcuts = & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $shortcutScript
-if ($LASTEXITCODE -ne 0) {
-    throw "Original shortcut script failed with exit code $LASTEXITCODE"
-}
+$originalShortcuts = Update-OriginalShortcuts
 
 [pscustomobject]@{
     SourcePackage = $source
